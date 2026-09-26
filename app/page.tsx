@@ -235,11 +235,11 @@ export default function HomePage() {
               {/* CTA Buttons */}
               <div className="flex flex-wrap items-center gap-4 mb-9">
                 <a
-                  href="#think-first"
+                  href="/play"
                   className="inline-flex items-center gap-2.5 bg-[#381f14] hover:bg-[#25130b] text-[#fcf1dc] px-7 py-3.5 rounded-[6px] font-serif-custom text-[17px] font-bold shadow-[0_3px_0_#200f07] transition-all hover:translate-y-[-2px] active:translate-y-[0px]"
                 >
                   <Play size={16} className="fill-[#fcf1dc]" />
-                  <span>Preview Think First</span>
+                  <span>Play vs Dr. Wolf</span>
                 </a>
                 <a
                   href="#how-it-works"

@@ -23,3 +23,24 @@
   - Updated Think First Socratic question to canonical trigger family (`opponent_threat`: *"Before you move — what is your opponent threatening?"*).
   - Synchronized canonical `PRD.md` (v1.4 FINAL) and `BUILD_SPEC.md` (v1.1 CANONICAL FINAL).
   - Added `NOTICE.md` with proper asset and vector licensing attribution.
+
+## Milestone 3: Server-Authoritative Chess Session Loop & Core Architecture
+- **Date:** 2026-09-26
+- **Focus:** Built the server-authoritative chess vertical slice (`/play` loop, StockfishAdapter, DB models, API contracts, session persistence, and state recovery).
+- **Decisions & Implementation:**
+  - **Server Owns Canonical Game State:**
+    - The browser is strictly a client. Every player move is transmitted to `POST /api/session/{id}/move`, validated against `python-chess` on the server, pushed to the board, matched with a canonical engine response, and committed transactionally to `sessions.current_fen`, `sessions.moves_uci`, and `sessions.ply_count`.
+    - Browser crashes or page refreshes query `GET /api/session/{id}/position` to reconstruct the exact server-verified position.
+  - **Why Browser Engine/State Cannot Be Authority:**
+    - Epistemological integrity requires that learner evidence (episodes, reasoning outcomes, and belief updates) derive from a deterministic, unforgeable sequence of moves.
+    - If the browser held move authority, client timing jitter, browser WASM variance, or race conditions could desynchronize learner episodes from real chess truth.
+  - **Engine Elo Floor & Honest Labeling:**
+    - Stockfish's UCI Elo limiter requires a minimum of ~1320 Elo. For beginner ratings (e.g., requested 900 Elo for an 800-rated learner), `StockfishAdapter.configure_limited(900)` honestly sets `engine_mode="custom_beginner"` (or `skill_floor`) and `effective_elo=None`.
+    - The backend and UI never falsely report an unsupported 900 UCI Elo. The opponent is honestly displayed as **"Training Engine"**.
+  - **Fixed Evaluation Perspective Normalization:**
+    - Stored engine evaluations are invariant White-relative integers (`eval_white_cp`, `mate_white`).
+    - All delta calculations use `eval_for_color(result, player_color)` rather than naive side-to-move subtractions, preventing perspective inversion bugs.
+  - **Rejected / Adjusted Suggestions:**
+    - *Rejected:* Storing board state purely in memory or client local storage. Enforced strict PostgreSQL/SQLAlchemy DB persistence.
+    - *Rejected:* Prematurely triggering client-side mock interruptions. Strictly adhered to BUILD_SPEC vertical slice ordering so interruptions only fire after full trigger pipeline integration.
+
