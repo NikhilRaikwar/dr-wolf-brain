@@ -14,7 +14,7 @@ from app.schemas import (
     MoveResponse,
     PositionResponse,
 )
-from app.chess.stockfish import StockfishAdapter
+from app.chess.stockfish import StockfishAdapter, EngineUnavailableError
 from app.config import settings
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -37,7 +37,6 @@ def start_session(
         player = db.query(Player).filter(Player.id == player_id).first()
 
     if not player:
-        # Auto-create default player for demo / initial session
         player = Player(
             estimated_rating=settings.DEFAULT_RATING,
         )
@@ -152,7 +151,7 @@ def make_move(
             detail=f"Illegal move {payload.move_uci} for current position",
         )
 
-    # 2. Apply Player Move
+    # 2. Apply Player Move tentatively
     board.push(player_move)
     moves = list(session.moves_uci) if isinstance(session.moves_uci, list) else []
     moves.append(player_move.uci())
@@ -162,32 +161,28 @@ def make_move(
     game_over = board.is_game_over()
     engine_move_uci: Optional[str] = None
 
-    # 4. If game continues, generate Training Engine move
+    # 4. If game continues, generate Training Engine move strictly via StockfishAdapter
     if not game_over:
         strength = engine_adapter.configure_limited(session.engine_elo)
-        engine_move_uci = engine_adapter.choose_training_move(board.fen(), strength)
-        if engine_move_uci:
-            try:
-                engine_move = chess.Move.from_uci(engine_move_uci)
-                if engine_move in board.legal_moves:
-                    board.push(engine_move)
-                    moves.append(engine_move.uci())
-                    ply_count += 1
-                else:
-                    # Fallback to any legal move
-                    first_legal = next(iter(board.legal_moves), None)
-                    if first_legal:
-                        board.push(first_legal)
-                        engine_move_uci = first_legal.uci()
-                        moves.append(engine_move_uci)
-                        ply_count += 1
-            except Exception:
-                first_legal = next(iter(board.legal_moves), None)
-                if first_legal:
-                    board.push(first_legal)
-                    engine_move_uci = first_legal.uci()
-                    moves.append(engine_move_uci)
-                    ply_count += 1
+        try:
+            engine_move_uci = engine_adapter.choose_training_move(board.fen(), strength)
+            if not engine_move_uci:
+                raise EngineUnavailableError("Engine failed to choose a move.")
+            
+            engine_move = chess.Move.from_uci(engine_move_uci)
+            if engine_move not in board.legal_moves:
+                raise EngineUnavailableError(f"Engine suggested illegal move: {engine_move_uci}")
+
+            board.push(engine_move)
+            moves.append(engine_move.uci())
+            ply_count += 1
+        except EngineUnavailableError:
+            # Transaction roll-back: session remains completely unmodified
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Training engine is temporarily unavailable.",
+            )
 
     # 5. Check final game status
     final_game_over = board.is_game_over()

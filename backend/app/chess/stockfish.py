@@ -7,6 +7,10 @@ import chess.engine
 
 logger = logging.getLogger(__name__)
 
+class EngineUnavailableError(Exception):
+    """Raised when Stockfish engine binary is unavailable or fails."""
+    pass
+
 class EvalResult(TypedDict):
     best_move: str          # uci
     best_move_san: str
@@ -75,13 +79,14 @@ class StockfishAdapter:
             )
 
     def analyze(self, fen: str, depth: Optional[int] = None, multipv: int = 1) -> EvalResult:
-        """Perform evaluation and return fixed White-perspective evaluation."""
+        """Perform evaluation and return fixed White-perspective evaluation.
+        Fails closed with EngineUnavailableError if Stockfish is missing or fails.
+        """
         d = depth or self.depth_live
         board = chess.Board(fen)
 
         if board.is_game_over():
             if board.is_checkmate():
-                # White won if turn is Black, else Black won
                 white_won = (board.turn == chess.BLACK)
                 return EvalResult(
                     best_move="",
@@ -101,63 +106,62 @@ class StockfishAdapter:
                     top_moves=[],
                 )
 
-        if self._binary_available:
-            try:
-                with chess.engine.SimpleEngine.popen_uci(self.path) as engine:
-                    info = engine.analyse(board, chess.engine.Limit(depth=d), multipv=multipv)
-                    if isinstance(info, list):
-                        primary = info[0]
-                        all_infos = info
+        if not self._binary_available:
+            raise EngineUnavailableError("Training engine binary is not installed or not in PATH.")
+
+        try:
+            with chess.engine.SimpleEngine.popen_uci(self.path) as engine:
+                info = engine.analyse(board, chess.engine.Limit(depth=d), multipv=multipv)
+                if isinstance(info, list):
+                    primary = info[0]
+                    all_infos = info
+                else:
+                    primary = info
+                    all_infos = [info]
+
+                score = primary.get("score")
+                pv_moves = primary.get("pv", [])
+                best_move_uci = pv_moves[0].uci() if pv_moves else ""
+                best_move_san = board.san(pv_moves[0]) if pv_moves else ""
+
+                eval_white_cp = 0
+                mate_white = None
+                if score:
+                    white_score = score.white()
+                    if white_score.is_mate():
+                        mate_white = white_score.mate()
+                        eval_white_cp = 100000 if mate_white > 0 else -100000
                     else:
-                        primary = info
-                        all_infos = [info]
+                        eval_white_cp = white_score.score(mate_score=100000) or 0
 
-                    score = primary.get("score")
-                    pv_moves = primary.get("pv", [])
-                    best_move_uci = pv_moves[0].uci() if pv_moves else ""
-                    best_move_san = board.san(pv_moves[0]) if pv_moves else ""
-
-                    eval_white_cp = 0
-                    mate_white = None
-                    if score:
-                        # Extract score relative to white
-                        white_score = score.white()
-                        if white_score.is_mate():
-                            mate_white = white_score.mate()
-                            eval_white_cp = 100000 if mate_white > 0 else -100000
+                top_moves = []
+                for item in all_infos:
+                    item_pv = item.get("pv", [])
+                    item_score = item.get("score")
+                    item_eval_cp = 0
+                    if item_score:
+                        w_score = item_score.white()
+                        if w_score.is_mate():
+                            item_eval_cp = 100000 if (w_score.mate() or 0) > 0 else -100000
                         else:
-                            eval_white_cp = white_score.score(mate_score=100000) or 0
+                            item_eval_cp = w_score.score(mate_score=100000) or 0
+                    if item_pv:
+                        top_moves.append({
+                            "move": item_pv[0].uci(),
+                            "eval_white_cp": item_eval_cp,
+                        })
 
-                    top_moves = []
-                    for item in all_infos:
-                        item_pv = item.get("pv", [])
-                        item_score = item.get("score")
-                        item_eval_cp = 0
-                        if item_score:
-                            w_score = item_score.white()
-                            if w_score.is_mate():
-                                item_eval_cp = 100000 if (w_score.mate() or 0) > 0 else -100000
-                            else:
-                                item_eval_cp = w_score.score(mate_score=100000) or 0
-                        if item_pv:
-                            top_moves.append({
-                                "move": item_pv[0].uci(),
-                                "eval_white_cp": item_eval_cp,
-                            })
-
-                    return EvalResult(
-                        best_move=best_move_uci,
-                        best_move_san=best_move_san,
-                        eval_white_cp=eval_white_cp,
-                        mate_white=mate_white,
-                        pv=[m.uci() for m in pv_moves],
-                        top_moves=top_moves,
-                    )
-            except Exception as e:
-                logger.warning(f"Stockfish engine invocation failed: {e}. Using fallback evaluator.")
-
-        # Fallback heuristic engine if binary not installed or failed
-        return self._heuristic_analyze(board)
+                return EvalResult(
+                    best_move=best_move_uci,
+                    best_move_san=best_move_san,
+                    eval_white_cp=eval_white_cp,
+                    mate_white=mate_white,
+                    pv=[m.uci() for m in pv_moves],
+                    top_moves=top_moves,
+                )
+        except Exception as e:
+            logger.error(f"Stockfish analysis failed: {e}")
+            raise EngineUnavailableError(f"Training engine evaluation failed: {e}") from e
 
     def eval_after(self, fen: str, move_uci: str, depth: Optional[int] = None) -> int:
         """Return fixed White-relative centipawn evaluation after applying move_uci."""
@@ -170,110 +174,59 @@ class StockfishAdapter:
         return 0
 
     def choose_training_move(self, fen: str, strength: EngineStrength) -> str:
-        """Choose engine response move adhering to requested strength mode."""
+        """Choose engine response move adhering to requested strength mode.
+        Fails closed with EngineUnavailableError if Stockfish is missing or fails.
+        """
         board = chess.Board(fen)
         legal_moves = list(board.legal_moves)
         if not legal_moves:
             return ""
 
-        if self._binary_available:
-            try:
-                with chess.engine.SimpleEngine.popen_uci(self.path) as engine:
-                    if strength["mode"] == "uci_elo" and strength.get("effective_elo"):
-                        engine.configure({
-                            "UCI_LimitStrength": True,
-                            "UCI_Elo": strength["effective_elo"],
-                        })
-                        result = engine.play(board, chess.engine.Limit(time=0.1, depth=self.depth_live))
-                        if result.move:
-                            return result.move.uci()
-                    elif strength["mode"] == "skill_floor":
-                        engine.configure({
-                            "Skill Level": 0,
-                        })
-                        result = engine.play(board, chess.engine.Limit(time=0.05, depth=4))
-                        if result.move:
-                            return result.move.uci()
-                    else:
-                        # custom_beginner: sample among top-3 candidates with plausible noise
-                        info = engine.analyse(board, chess.engine.Limit(depth=5), multipv=min(3, len(legal_moves)))
-                        candidates = []
-                        if isinstance(info, list):
-                            for inf in info:
-                                if inf.get("pv"):
-                                    candidates.append(inf["pv"][0])
-                        elif info.get("pv"):
-                            candidates.append(info["pv"][0])
+        if not self._binary_available:
+            raise EngineUnavailableError("Training engine binary is not installed or not in PATH.")
 
-                        if candidates:
-                            # 70% best, 30% second/third candidate to mimic human beginner
-                            import random
-                            return candidates[0].uci() if (len(candidates) == 1 or random.random() < 0.7) else candidates[1].uci()
-            except Exception as e:
-                logger.warning(f"Engine play failed: {e}. Using fallback move generator.")
+        try:
+            with chess.engine.SimpleEngine.popen_uci(self.path) as engine:
+                if strength["mode"] == "uci_elo" and strength.get("effective_elo"):
+                    engine.configure({
+                        "UCI_LimitStrength": True,
+                        "UCI_Elo": strength["effective_elo"],
+                    })
+                    result = engine.play(board, chess.engine.Limit(time=0.1, depth=self.depth_live))
+                    if result.move:
+                        return result.move.uci()
+                elif strength["mode"] == "skill_floor":
+                    engine.configure({
+                        "Skill Level": 0,
+                    })
+                    result = engine.play(board, chess.engine.Limit(time=0.05, depth=4))
+                    if result.move:
+                        return result.move.uci()
+                else:
+                    # custom_beginner: Stockfish candidate move evaluation + weighted sampling
+                    info = engine.analyse(board, chess.engine.Limit(depth=5), multipv=min(3, len(legal_moves)))
+                    candidates = []
+                    if isinstance(info, list):
+                        for inf in info:
+                            if inf.get("pv"):
+                                candidates.append(inf["pv"][0])
+                    elif info.get("pv"):
+                        candidates.append(info["pv"][0])
 
-        # Heuristic fallback move generator
-        return self._heuristic_choose_move(board, strength["mode"])
+                    if candidates:
+                        import random
+                        # 70% best engine candidate, 30% second/third engine candidate
+                        if len(candidates) == 1 or random.random() < 0.7:
+                            return candidates[0].uci()
+                        else:
+                            return candidates[1].uci()
+                    
+                    # Fallback to play if analysis returned empty pv
+                    result = engine.play(board, chess.engine.Limit(time=0.05, depth=3))
+                    if result.move:
+                        return result.move.uci()
+        except Exception as e:
+            logger.error(f"Stockfish move generation failed: {e}")
+            raise EngineUnavailableError(f"Training engine move choice failed: {e}") from e
 
-    def _heuristic_analyze(self, board: chess.Board) -> EvalResult:
-        """Fast fallback material & mobility evaluator with fixed White perspective."""
-        piece_values = {
-            chess.PAWN: 100,
-            chess.KNIGHT: 320,
-            chess.BISHOP: 330,
-            chess.ROOK: 500,
-            chess.QUEEN: 900,
-            chess.KING: 0,
-        }
-        white_val = sum(len(board.pieces(pt, chess.WHITE)) * val for pt, val in piece_values.items())
-        black_val = sum(len(board.pieces(pt, chess.BLACK)) * val for pt, val in piece_values.items())
-        diff = white_val - black_val
-
-        legal_moves = list(board.legal_moves)
-        if not legal_moves:
-            return EvalResult(
-                best_move="",
-                best_move_san="",
-                eval_white_cp=diff,
-                mate_white=None,
-                pv=[],
-                top_moves=[],
-            )
-
-        # Pick move with simple capture/center heuristic
-        best_move = legal_moves[0]
-        for m in legal_moves:
-            if board.is_capture(m):
-                best_move = m
-                break
-
-        return EvalResult(
-            best_move=best_move.uci(),
-            best_move_san=board.san(best_move),
-            eval_white_cp=diff,
-            mate_white=None,
-            pv=[best_move.uci()],
-            top_moves=[{"move": best_move.uci(), "eval_white_cp": diff}],
-        )
-
-    def _heuristic_choose_move(self, board: chess.Board, mode: str) -> str:
-        legal_moves = list(board.legal_moves)
-        if not legal_moves:
-            return ""
-
-        # Prefer developing/captures
-        captures = [m for m in legal_moves if board.is_capture(m)]
-        checks = [m for m in legal_moves if board.gives_check(m)]
-
-        if mode == "custom_beginner":
-            # Natural simple play
-            if captures:
-                return captures[0].uci()
-            if checks:
-                return checks[0].uci()
-            # prefer pawn or knight moves early
-            for m in legal_moves:
-                if board.piece_type_at(m.from_square) in (chess.PAWN, chess.KNIGHT, chess.BISHOP):
-                    return m.uci()
-
-        return legal_moves[0].uci()
+        raise EngineUnavailableError("Training engine failed to generate a move.")

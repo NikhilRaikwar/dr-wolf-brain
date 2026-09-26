@@ -1,5 +1,6 @@
 import os
 import pytest
+from sqlalchemy import create_engine, inspect
 
 def test_migration_sql_exists_and_has_11_tables():
     """Verify 001_initial.sql contains all 11 tables and epistemology check constraint."""
@@ -35,6 +36,7 @@ def test_migration_sql_exists_and_has_11_tables():
     assert "NOT (source_type='imported_position' AND claim_type='hypothesis'" in content or \
            "NOT (source_type = 'imported_position' AND claim_type = 'hypothesis'" in content
 
+
 def test_alembic_migration_parity():
     """Verify Alembic 001_initial.py executes 001_initial.sql."""
     alembic_rev_path = os.path.abspath(
@@ -47,3 +49,32 @@ def test_alembic_migration_parity():
 
     assert "001_initial.sql" in content
     assert "op.execute(sql_statements)" in content
+
+
+def test_database_table_inspection():
+    """Smoke test inspecting schema definitions in the test database."""
+    from app.db import Base
+    from app import models
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
+    engine = create_engine(db_url, connect_args={"check_same_thread": False} if db_url.startswith("sqlite") else {})
+
+    Base.metadata.create_all(bind=engine)
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    expected_tables = {
+        "players",
+        "games",
+        "positions",
+        "sessions",
+        "episodes",
+        "skills",
+        "hypotheses",
+        "evidence_records",
+        "belief_changes",
+        "transfer_positions",
+        "dream_cycle_runs",
+    }
+
+    assert expected_tables.issubset(tables), f"Missing tables in DB: {expected_tables - tables}"
