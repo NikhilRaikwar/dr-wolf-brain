@@ -1,56 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#382414"/>
-      <stop offset="100%" stop-color="#1b120a"/>
+    <linearGradient id="walnutBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3d2215"/>
+      <stop offset="100%" stop-color="#180e07"/>
     </linearGradient>
-    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e8b86d"/>
-      <stop offset="100%" stop-color="#ba7a28"/>
+    <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5d38a"/>
+      <stop offset="50%" stop-color="#c98a36"/>
+      <stop offset="100%" stop-color="#8a5014"/>
     </linearGradient>
-    <radialGradient id="amberGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#e28743" stop-opacity="0.35"/>
-      <stop offset="100%" stop-color="#e28743" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="ivoryKnight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffdf8"/>
+      <stop offset="100%" stop-color="#eedcbe"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
   </defs>
 
-  <!-- Base Rounded Container with border -->
-  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bgGrad)" stroke="#c8934f" stroke-width="3.5" stroke-opacity="0.85"/>
-  <circle cx="64" cy="64" r="48" fill="url(#amberGlow)" />
-
-  <!-- Distinguished Wolf / Chess Knight Silhouette -->
-  <!-- Wolf Ears & Crown -->
-  <path d="M34 50 L44 26 L56 42 L64 34 L72 42 L84 26 L94 50 L90 74 L80 96 L48 96 L38 74 Z" fill="#f6eedb" opacity="0.12"/>
+  <!-- Background Base with Antique Gold Border -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#walnutBg)" stroke="url(#goldBorder)" stroke-width="2.5" />
   
-  <!-- Stylized Wolf / Scholarly Silhouette -->
-  <!-- Left Ear -->
-  <path d="M42 30 L54 48 L38 52 Z" fill="url(#goldGrad)" stroke="#1b120a" stroke-width="1.5" stroke-linejoin="round"/>
-  <!-- Right Ear -->
-  <path d="M86 30 L90 52 L74 48 Z" fill="url(#goldGrad)" stroke="#1b120a" stroke-width="1.5" stroke-linejoin="round"/>
-  
-  <!-- Head Structure -->
-  <path d="M40 50 C40 45, 52 42, 64 42 C76 42, 88 45, 88 50 C92 62, 88 74, 84 84 L76 96 L52 96 L44 84 C40 74, 36 62, 40 50 Z" fill="#f8f3e6" stroke="#24180f" stroke-width="2"/>
+  <!-- Subtle Inner Inset Border -->
+  <rect x="5.5" y="5.5" width="53" height="53" rx="11" fill="none" stroke="#633b21" stroke-width="1" stroke-opacity="0.6" />
 
-  <!-- Wolf Muzzle & Snout -->
-  <path d="M52 64 L64 60 L76 64 L70 82 L58 82 Z" fill="#ecdcc0" stroke="#382414" stroke-width="1.5"/>
-  <!-- Nose -->
-  <path d="M60 76 L68 76 L64 81 Z" fill="#24180f"/>
+  <!-- Chess Knight Figure (Scaled & Centered for Favicon Clarity) -->
+  <g transform="translate(9.5, 7.5) scale(1.0)" filter="url(#shadow)">
+    <!-- Base Body of Knight -->
+    <path fill="url(#ivoryKnight)" stroke="#2b160b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+      d="M22 10c10.5 1 16.5 8 16 29H15c0-9 10-6.5 8-21 Z" />
+    
+    <!-- Head & Muzzle of Knight / Wolf-Knight -->
+    <path fill="url(#ivoryKnight)" stroke="#2b160b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+      d="M24 18c.38 2.91-5.55 7.37-8 9-3 2-2.82 4.34-5 4-1.042-.94 1.41-3.04 0-3-1 0 .19 1.23-1 2-1 0-4.003 1-4-4 0-2 6-12 6-12s1.89-1.9 2-3.5c-.73-.994-.5-2-.5-3 1-1 3 2.5 3 2.5h2s.78-1.992 2.5-3c1 0 1 3 1 3 Z" />
 
-  <!-- Scholarly Round Spectacles / Monocle -->
-  <circle cx="53" cy="58" r="9" fill="none" stroke="#ba7a28" stroke-width="2.5"/>
-  <circle cx="75" cy="58" r="9" fill="none" stroke="#ba7a28" stroke-width="2.5"/>
-  <path d="M62 58 L66 58" stroke="#ba7a28" stroke-width="2.5" stroke-linecap="round"/>
-  
-  <!-- Eyes -->
-  <circle cx="53" cy="58" r="3" fill="#24180f"/>
-  <circle cx="54.2" cy="56.8" r="1" fill="#ffffff"/>
-  <circle cx="75" cy="58" r="3" fill="#24180f"/>
-  <circle cx="76.2" cy="56.8" r="1" fill="#ffffff"/>
-
-  <!-- Scholar Bowtie / Collar -->
-  <path d="M52 100 L64 93 L76 100 L68 107 L64 102 L60 107 Z" fill="url(#goldGrad)" stroke="#1b120a" stroke-width="1.5"/>
-  <circle cx="64" cy="97" r="2.5" fill="#382414"/>
-
-  <!-- Tiny Chess Crown / Spark at Top -->
-  <circle cx="64" cy="18" r="3" fill="#e8b86d"/>
+    <!-- Eye & Mane Details -->
+    <circle cx="9.5" cy="25.5" r="1.3" fill="#2b160b" />
+    <circle cx="10" cy="25.2" r="0.4" fill="#ffffff" />
+    <path d="M14.5 15.8 C14.5 15 15.5 15 15.5 15.8 C15.5 16.6 14.5 16.6 14.5 15.8 Z" fill="#2b160b" />
+    
+    <!-- Gold Mane Contour Accent -->
+    <path d="M24.5 11.5 C30 13.5 34.5 18 34.5 37" fill="none" stroke="#d89b3f" stroke-width="1.5" stroke-linecap="round" />
+  </g>
 </svg>

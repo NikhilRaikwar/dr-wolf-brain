@@ -261,7 +261,7 @@ export default function HomePage() {
                 <div className="flex items-center gap-2.5 text-[#543827]">
                   <Brain size={22} className="text-[#361f14] flex-shrink-0" />
                   <span className="font-serif-custom text-[14px] leading-tight font-medium">
-                    Learns from your games
+                    Learns from games + Think First
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5 text-[#543827]">
@@ -432,8 +432,7 @@ export default function HomePage() {
                     href="#think-first"
                     className="inline-flex items-center gap-1.5 bg-[#361f14] hover:bg-[#201008] text-[#fbf1dc] text-[11px] font-serif-custom font-semibold px-2.5 py-1.5 rounded shadow"
                   >
-                    <span>Think about plans</span>
-                    <ArrowRight size={11} />
+                    <span>See a session review →</span>
                   </a>
                 </div>
               </div>
@@ -538,8 +537,8 @@ export default function HomePage() {
                     </strong>
                     <p className="font-serif-custom text-[12px] sm:text-[13px] text-[#4d3222] leading-snug mt-0.5">
                       &ldquo;I asked because this position matched an opponent-threat coaching
-                      trigger. In the working product, a learner-pattern claim appears here only
-                      when stored Think First episodes support it.&rdquo;
+                      trigger. I’d only turn this into a belief about you after Think First sessions
+                      give me enough evidence.&rdquo;
                     </p>
                   </div>
                 </div>

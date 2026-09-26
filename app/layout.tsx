@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://dr-wolf-brain.vercel.app'),
   title: 'Dr. Wolf Brain — An AI Chess Coach That Learns How You Think',
   description:
-    'An AI chess coach that listens before it speaks. Grounded in Stockfish evaluation, guided by cognitive psychology, and personalized to your actual thought process.',
+    'An AI chess coach that listens before it speaks. Grounded in Stockfish analysis, structured learner evidence, and Socratic practice.',
   keywords: [
     'Dr. Wolf Brain',
     'AI Chess Coach',
@@ -38,17 +38,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://github.com/NikhilRaikwar/dr-wolf-brain',
+    url: 'https://dr-wolf-brain.vercel.app',
     siteName: 'Dr. Wolf Brain',
     title: 'Dr. Wolf Brain — An AI Chess Coach That Learns How You Think',
     description:
-      'An AI chess coach that listens before it speaks. Grounded in Stockfish evaluation, guided by cognitive psychology, and personalized to your actual thought process.',
+      'An AI chess coach that listens before it speaks. Grounded in Stockfish analysis, structured learner evidence, and Socratic practice.',
     images: [
       {
-        url: '/dr_wolf_portrait.jpg',
+        url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Dr. Wolf Brain — AI Chess Coach',
+        alt: 'Dr. Wolf Brain — AI Chess Coach That Learns How You Think',
       },
     ],
   },
@@ -56,8 +56,8 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Dr. Wolf Brain — An AI Chess Coach That Learns How You Think',
     description:
-      'An AI chess coach that listens before it speaks. Grounded in Stockfish, guided by cognitive psychology.',
-    images: ['/dr_wolf_portrait.jpg'],
+      'An AI chess coach that listens before it speaks. Grounded in Stockfish analysis, structured learner evidence, and Socratic practice.',
+    images: ['/og-image.png'],
     creator: '@NikhilRaikwar',
   },
   icons: {
@@ -84,7 +84,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${newsreader.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
-      <body className="antialiased font-serif-custom" suppressHydrationWarning>
+      <body className="antialiased font-serif-custom">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
