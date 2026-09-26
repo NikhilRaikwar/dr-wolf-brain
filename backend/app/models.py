@@ -120,16 +120,21 @@ class Episode(Base):
     player_id = Column(GUID(), ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True)
     move_number = Column(Integer, nullable=False)
     fen = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="prompted")
     trigger_evidence = Column(JSON, nullable=False)
-    learner_reasoning = Column(JSON, nullable=False)
-    learner_action = Column(JSON, nullable=False)
-    engine_truth = Column(JSON, nullable=False)
+    learner_reasoning = Column(JSON, nullable=True)
+    learner_action = Column(JSON, nullable=True)
+    engine_truth = Column(JSON, nullable=True)
     reasoning_outcome = Column(String, nullable=True)
     move_outcome = Column(String, nullable=True)
     move_quality_cp_loss = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('prompted', 'answered', 'committed', 'graded')",
+            name="chk_episode_status",
+        ),
         CheckConstraint(
             "reasoning_outcome IN ('recognized', 'partial', 'missed')",
             name="chk_reasoning_outcome",

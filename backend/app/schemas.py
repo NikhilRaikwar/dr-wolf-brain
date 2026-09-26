@@ -30,6 +30,11 @@ class ReasoningAnswer(BaseModel):
     free_text: Optional[str] = None
     squares_highlighted: List[str] = Field(default_factory=list)  # e.g. ["c5","d4"]
 
+class AnswerResponse(BaseModel):
+    ok: bool = True
+    episode_id: UUID
+    status: str
+
 class EpisodeResponse(BaseModel):
     episode_id: UUID
     trigger_type: str

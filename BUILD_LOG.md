@@ -46,3 +46,34 @@
     - *Rejected:* Falling back to arbitrary heuristics or random legal moves when the chess engine fails. Enforced fail-closed HTTP 503 response.
     - *Rejected:* Prematurely triggering client-side mock interruptions. Strictly adhered to BUILD_SPEC vertical slice ordering so interruptions only fire after full trigger pipeline integration.
 
+## Milestone 4: Deterministic Think First Interruption & Episode Lifecycle
+- **Date:** 2026-09-27
+- **Focus:** Built the deterministic Think First trigger detection pipeline, interruption governor, curated question bank, Socratic UI modal, and staged episode lifecycle (`prompted → answered → committed`).
+- **Decisions & Implementation:**
+  - **Deterministic Trigger Authority (`triggers.py`):**
+    - Implemented 5 canonical v1 trigger families: `opponent_threat`, `hanging`, `king_safety`, `forcing_candidate`, and `passive_piece` (low priority).
+    - Every detector outputs structured, auditable evidence records with engine facts and target concept mapping from `concepts.py`.
+    - No LLM calls are involved in trigger detection or chess truth.
+    - All evaluation comparisons use fixed-perspective normalization: `eval_for_color(analysis, player_color)`.
+  - **Deterministic Interruption Governor (`governor.py`):**
+    - Enforced strict pedagogical constraints: maximum 5 interruptions per session, no interruptions in early opening (< move 8), minimum spacing of 6 moves between interruptions, no consecutive repetition of the same trigger type, and automatic suppression on terminal or dead/drawn positions.
+    - Governor tie-breaks strictly using static trigger priorities (`opponent_threat`=0, `hanging`=1, `king_safety`=2, `forcing_candidate`=3, `passive_piece`=4) without fabricated learner weakness priors.
+  - **Why Frontend Cannot Trigger Interruption Independently:**
+    - The browser is never authoritative for coaching interruptions.
+    - All interruptions are generated server-side during the canonical `POST /api/session/{id}/move` lifecycle after engine reply calculation.
+    - The server transactionally inserts a `prompted` episode into PostgreSQL, binds server-stored question metadata, and returns the interruption payload. The client displays `SocraticModal` only in response to this confirmed server event.
+  - **Curated Question Bank (`questions.py`):**
+    - Implemented stable question IDs: `opponent_threat_counterplay`, `hanging_under_attack`, `king_safety_compare_kings`, `forcing_candidate_another_candidate`, `passive_piece_least_active`.
+    - Each entry provides exactly 4 structured options (shuffled for display), with the correct target concept always present alongside 3 plausible distractors.
+  - **Staged Episode Lifecycle:**
+    - `prompted`: Created on server interruption with `trigger_evidence` populated. Staged fields (`learner_reasoning`, `learner_action`, `engine_truth`, `reasoning_outcome`, `move_outcome`) remain null.
+    - `answered`: `POST /api/session/{id}/interrupt/{episode_id}/answer` accepts client `ReasoningAnswer`, validates option selection against server question definition, merges server question metadata, and transitions episode status to `answered`.
+    - `committed`: On the player's next move submitted to `POST /api/session/{id}/move`, the server binds `learner_action = {"move_played": player_move}` and advances status to `committed`.
+  - **Parchment Socratic Modal (`components/SocraticModal.tsx`):**
+    - Built modal in authentic Dr. Wolf parchment styling with Dr. Wolf portrait, question text, 4 structured radio choices, and optional free-text rationale.
+    - Displays no evaluation bar, no best move arrow, no engine lines, and no correctness verdict mid-game.
+  - **Rejected / Adjusted Suggestions:**
+    - *Rejected:* Client-side guessing of question IDs or option validity. Enforced server-authoritative question retrieval and option validation.
+    - *Rejected:* Premature reasoning grading or mastery updating. Cleanly scoped this milestone to terminate at `committed` status.
+
+

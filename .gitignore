@@ -22,3 +22,10 @@ __pycache__/
 *$py.class
 .pytest_cache/
 .env
+backend/stockfish.zip
+backend/stockfish_bin/
+*.zip
+*.exe
+*.db
+*.sqlite
+*.sqlite3

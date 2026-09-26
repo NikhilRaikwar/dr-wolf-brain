@@ -53,10 +53,11 @@ CREATE TABLE IF NOT EXISTS episodes (
   player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
   move_number INT NOT NULL,
   fen TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'prompted' CHECK (status IN ('prompted','answered','committed','graded')),
   trigger_evidence JSONB NOT NULL,   -- {type, detected_by, engine_facts{threat,key_squares,key_pieces,eval_before,eval_if_missed}}
-  learner_reasoning JSONB NOT NULL,  -- {question_asked, choice, free_text, squares_highlighted}
-  learner_action JSONB NOT NULL,     -- {move_played}
-  engine_truth JSONB NOT NULL,       -- {best_move, best_eval, played_eval, cp_loss, concept}
+  learner_reasoning JSONB,           -- {question_asked, choice, free_text, squares_highlighted}
+  learner_action JSONB,              -- {move_played}
+  engine_truth JSONB,                -- {best_move, best_eval, played_eval, cp_loss, concept}
   reasoning_outcome TEXT CHECK (reasoning_outcome IN ('recognized','partial','missed')),
   move_outcome TEXT CHECK (move_outcome IN ('best','acceptable','inaccurate','mistake')),
   move_quality_cp_loss INT,

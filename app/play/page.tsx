@@ -15,6 +15,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { InteractiveChessboard } from '@/components/InteractiveChessboard'
+import { SocraticModal, InterruptionData } from '@/components/SocraticModal'
 import { Chess } from 'chess.js'
 
 interface SessionState {
@@ -36,11 +37,14 @@ export default function PlayPage() {
   const [isThinking, setIsThinking] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null)
+  const [activeInterruption, setActiveInterruption] = useState<InterruptionData | null>(null)
+  const [justAnsweredPrompt, setJustAnsweredPrompt] = useState<boolean>(false)
 
   // Start fresh session or load existing
   const initializeSession = useCallback(async (savedSessionId?: string) => {
     setIsLoading(true)
     setErrorMsg(null)
+    setActiveInterruption(null)
     try {
       if (savedSessionId) {
         const res = await fetch(`/api/session/${savedSessionId}/position`)
@@ -58,6 +62,10 @@ export default function PlayPage() {
             game_over: data.game_over || false,
             result: data.result || null,
           })
+
+          if (data.interruption) {
+            setActiveInterruption(data.interruption)
+          }
 
           if (data.moves_uci && data.moves_uci.length > 0) {
             const last = data.moves_uci[data.moves_uci.length - 1]
@@ -115,10 +123,11 @@ export default function PlayPage() {
   }, [initializeSession])
 
   const handleMakeMove = async (moveUci: string) => {
-    if (!session || session.game_over || isThinking) return
+    if (!session || session.game_over || isThinking || activeInterruption) return
 
     setIsThinking(true)
     setErrorMsg(null)
+    setJustAnsweredPrompt(false)
 
     // Parse player move from/to for visual feedback
     const pFrom = moveUci.substring(0, 2)
@@ -160,6 +169,11 @@ export default function PlayPage() {
             }
           : null
       )
+
+      // Handle server-authoritative Think First interruption
+      if (moveData.interruption) {
+        setActiveInterruption(moveData.interruption)
+      }
     } catch (err: any) {
       console.error(err)
       setErrorMsg(err.message || 'Error executing move')
@@ -170,6 +184,11 @@ export default function PlayPage() {
     } finally {
       setIsThinking(false)
     }
+  }
+
+  const handleInterruptionAnswered = () => {
+    setActiveInterruption(null)
+    setJustAnsweredPrompt(true)
   }
 
   const handleNewGame = () => {
@@ -332,10 +351,21 @@ export default function PlayPage() {
                 fen={session?.fen || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'}
                 playerColor="white"
                 isThinking={isThinking}
-                disabled={session?.game_over}
+                disabled={session?.game_over || activeInterruption !== null}
                 lastMove={lastMove}
                 onMakeMove={handleMakeMove}
               />
+
+              {/* Just Answered Notification Banner */}
+              {justAnsweredPrompt && (
+                <div className="mt-3 max-w-[480px] w-full bg-[#EBF5DF] border border-[#BBDC96] text-[#2D5A1E] px-4 py-3 rounded-xl text-xs font-serif-custom flex items-center gap-2.5 shadow-sm animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-[#4E8D2E] shrink-0" />
+                  <div>
+                    <strong className="block font-bold">Thinking Recorded</strong>
+                    <span>Now execute your move on the board to commit your action.</span>
+                  </div>
+                </div>
+              )}
 
               {/* Error Banner */}
               {errorMsg && (
@@ -375,6 +405,10 @@ export default function PlayPage() {
                     <p className="font-serif-custom text-[13px] text-[#4d3222] leading-snug mt-0.5">
                       {isThinking ? (
                         'Analyzing the position and choosing my reply...'
+                      ) : activeInterruption ? (
+                        'Pause for a moment. Look at the Socratic question and reflect before moving.'
+                      ) : justAnsweredPrompt ? (
+                        'Good reflection. Now make your move on the board.'
                       ) : session?.game_over ? (
                         session.result === '1-0' ? (
                           'Well played! Checkmate — you won this game.'
@@ -452,6 +486,16 @@ export default function PlayPage() {
           </div>
         )}
       </div>
+
+      {/* Socratic Interruption Modal */}
+      {activeInterruption && session && (
+        <SocraticModal
+          sessionId={session.session_id}
+          fen={session.fen}
+          interruption={activeInterruption}
+          onAnswered={handleInterruptionAnswered}
+        />
+      )}
     </main>
   )
 }

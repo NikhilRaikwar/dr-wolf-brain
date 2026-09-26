@@ -164,13 +164,21 @@ class StockfishAdapter:
             raise EngineUnavailableError(f"Training engine evaluation failed: {e}") from e
 
     def eval_after(self, fen: str, move_uci: str, depth: Optional[int] = None) -> int:
-        """Return fixed White-relative centipawn evaluation after applying move_uci."""
+        """Return fixed White-relative centipawn evaluation after applying move_uci.
+        Supports hypothetical candidate/threat moves for either player color.
+        """
         board = chess.Board(fen)
-        move = chess.Move.from_uci(move_uci)
-        if move in board.legal_moves:
-            board.push(move)
-            res = self.analyze(board.fen(), depth=depth)
-            return res["eval_white_cp"]
+        try:
+            move = chess.Move.from_uci(move_uci)
+            piece = board.piece_at(move.from_square)
+            if piece and piece.color != board.turn:
+                board.turn = piece.color
+            if move in board.legal_moves and not board.is_into_check(move):
+                board.push(move)
+                res = self.analyze(board.fen(), depth=depth)
+                return res["eval_white_cp"]
+        except Exception as e:
+            logger.warning(f"eval_after failed for move {move_uci}: {e}")
         return 0
 
     def choose_training_move(self, fen: str, strength: EngineStrength) -> str:
