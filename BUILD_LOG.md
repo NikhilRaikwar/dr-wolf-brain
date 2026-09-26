@@ -36,11 +36,13 @@
     - If the browser held move authority, client timing jitter, browser WASM variance, or race conditions could desynchronize learner episodes from real chess truth.
   - **Engine Elo Floor & Honest Labeling:**
     - Stockfish's UCI Elo limiter requires a minimum of ~1320 Elo. For beginner ratings (e.g., requested 900 Elo for an 800-rated learner), `StockfishAdapter.configure_limited(900)` honestly sets `engine_mode="custom_beginner"` (or `skill_floor`) and `effective_elo=None`.
-    - The backend and UI never falsely report an unsupported 900 UCI Elo. The opponent is honestly displayed as **"Training Engine"**.
+    - `custom_beginner` uses Stockfish Multi-PV candidate analysis at depth 5, sampling 70% top Stockfish candidate (#1) and 30% second Stockfish candidate (#2) when available. It never uses random or unverified heuristic moves.
+    - If Stockfish is unavailable or binary execution fails, the backend strictly fails closed with typed `EngineUnavailableError` returning HTTP 503 ("Training engine is temporarily unavailable.") and rolls back the database transaction.
   - **Fixed Evaluation Perspective Normalization:**
     - Stored engine evaluations are invariant White-relative integers (`eval_white_cp`, `mate_white`).
     - All delta calculations use `eval_for_color(result, player_color)` rather than naive side-to-move subtractions, preventing perspective inversion bugs.
   - **Rejected / Adjusted Suggestions:**
     - *Rejected:* Storing board state purely in memory or client local storage. Enforced strict PostgreSQL/SQLAlchemy DB persistence.
+    - *Rejected:* Falling back to arbitrary heuristics or random legal moves when the chess engine fails. Enforced fail-closed HTTP 503 response.
     - *Rejected:* Prematurely triggering client-side mock interruptions. Strictly adhered to BUILD_SPEC vertical slice ordering so interruptions only fire after full trigger pipeline integration.
 

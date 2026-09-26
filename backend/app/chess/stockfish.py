@@ -215,7 +215,7 @@ class StockfishAdapter:
 
                     if candidates:
                         import random
-                        # 70% best engine candidate, 30% second/third engine candidate
+                        # 70% top Stockfish candidate (#1), 30% second Stockfish candidate (#2)
                         if len(candidates) == 1 or random.random() < 0.7:
                             return candidates[0].uci()
                         else:

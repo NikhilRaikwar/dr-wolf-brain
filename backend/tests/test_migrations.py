@@ -1,6 +1,6 @@
 import os
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 def test_migration_sql_exists_and_has_11_tables():
     """Verify 001_initial.sql contains all 11 tables and epistemology check constraint."""
@@ -51,15 +51,22 @@ def test_alembic_migration_parity():
     assert "op.execute(sql_statements)" in content
 
 
-def test_database_table_inspection():
-    """Smoke test inspecting schema definitions in the test database."""
-    from app.db import Base
-    from app import models
+@pytest.mark.postgres
+def test_postgres_alembic_migration_inspection():
+    """Verify the real PostgreSQL schema created by Alembic migration without Base.metadata.create_all()."""
+    pg_url = os.environ.get("POSTGRES_TEST_DATABASE_URL")
+    if not pg_url or not pg_url.startswith("postgresql"):
+        pytest.skip("POSTGRES_TEST_DATABASE_URL not configured")
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
-    engine = create_engine(db_url, connect_args={"check_same_thread": False} if db_url.startswith("sqlite") else {})
+    engine = create_engine(pg_url)
+    try:
+        with engine.connect() as conn:
+            # Verify database connectivity
+            conn.execute(text("SELECT 1"))
+    except Exception as e:
+        pytest.skip(f"PostgreSQL connection failed: {e}")
 
-    Base.metadata.create_all(bind=engine)
+    # Inspect the actual tables created by Alembic migration
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
 
@@ -77,4 +84,19 @@ def test_database_table_inspection():
         "dream_cycle_runs",
     }
 
-    assert expected_tables.issubset(tables), f"Missing tables in DB: {expected_tables - tables}"
+    assert expected_tables.issubset(tables), (
+        f"Alembic PostgreSQL migration missing tables: {expected_tables - tables}"
+    )
+
+    # Inspect CHECK constraints on evidence_records
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            SELECT conname, pg_get_constraintdef(oid) 
+            FROM pg_constraint 
+            WHERE conrelid = 'evidence_records'::regclass AND contype = 'c';
+        """)).fetchall()
+
+        constraint_names = [row[0] for row in result]
+        assert "no_import_hypothesis_claims" in constraint_names, (
+            f"Missing constraint 'no_import_hypothesis_claims' on evidence_records. Found: {constraint_names}"
+        )
