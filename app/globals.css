@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@layer base {
+  :root {
+    --paper-bg: #f6eedb;
+    --paper-card: #fbf5e8;
+    --paper-card-inner: #f8f0df;
+    --paper-darker: #ecd8b6;
+    --paper-border: #d4bc96;
+    --paper-border-subtle: rgba(135, 93, 56, 0.22);
+    --ink-dark: #2a150c;
+    --ink-main: #382014;
+    --ink-soft: #5e402e;
+    --ink-muted: #826652;
+    --accent-gold: #b3782b;
+    --accent-green: #4f8034;
+    --accent-yellow: #d69818;
+    --btn-dark: #341d13;
+    --btn-dark-hover: #22110a;
+  }
+
+  body {
+    background-color: var(--paper-bg);
+    color: var(--ink-main);
+    font-family: 'Newsreader', 'EB Garamond', Georgia, serif;
+    background-image: 
+      radial-gradient(rgba(120, 80, 45, 0.08) 0.75px, transparent 0.75px),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(246, 238, 219, 0.85) 100%);
+    background-size: 8px 8px, 100% 100%;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Newsreader', 'EB Garamond', Georgia, serif;
+    letter-spacing: -0.015em;
+    color: var(--ink-dark);
+  }
+}
+
+/* Typography styles */
+.font-sans-custom {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif !important;
+}
+
+.font-serif-custom {
+  font-family: 'Newsreader', 'EB Garamond', Georgia, serif !important;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', Georgia, serif !important;
+}
+
+/* Vintage Decorative Dividers */
+.vintage-ornament {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #cbb08a;
+  margin: 0 auto;
+}
+
+.vintage-ornament::before,
+.vintage-ornament::after {
+  content: '';
+  display: block;
+  height: 1px;
+  width: 70px;
+  background: linear-gradient(90deg, transparent, #cbb08a);
+}
+
+.vintage-ornament::after {
+  background: linear-gradient(270deg, transparent, #cbb08a);
+}
+
+/* Paper Window / Cards */
+.parchment-window {
+  background: #ecd4ab;
+  border: 1px solid #be9a6c;
+  box-shadow: 
+    0 16px 36px rgba(58, 34, 22, 0.16),
+    0 2px 6px rgba(58, 34, 22, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border-radius: 9px;
+}
+
+.parchment-card {
+  background: rgba(253, 248, 238, 0.92);
+  border: 1px solid #dac098;
+  box-shadow: 
+    0 3px 10px rgba(78, 48, 25, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.parchment-card:hover {
+  border-color: #c49a62;
+  box-shadow: 
+    0 6px 18px rgba(78, 48, 25, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.parchment-inset {
+  background: #fbf2df;
+  border: 1px solid rgba(179, 137, 89, 0.35);
+  box-shadow: inset 0 1px 3px rgba(80, 50, 20, 0.04);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #eedcb8;
+}
+::-webkit-scrollbar-thumb {
+  background: #bfa073;
+  border-radius: 3px;
+}
