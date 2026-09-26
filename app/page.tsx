@@ -1,14 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Image from 'next/image'
 import {
   Play,
   ArrowRight,
-  GraduationCap,
+  Target,
   Brain,
-  BarChart3,
-  Check,
+  FileText,
   Music2,
   Lightbulb,
   MessageSquare,
@@ -16,33 +15,92 @@ import {
   Star,
   Layers,
   Database,
-  SlidersHorizontal,
-  Target,
+  EyeOff,
+  Sparkles,
   GitFork,
   TrendingUp,
   Gamepad2,
-  Settings,
-  FileText,
+  Settings2,
   BookOpen,
   Code2,
   Menu,
   X,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  AlertCircle,
+  Check,
+  Moon,
+  HelpCircle,
+  ExternalLink,
 } from 'lucide-react'
-import { ChessboardView, defaultHeroPosition, thinkFirstPosition, reviewPosition } from '@/components/Chessboard'
+import { ChessboardView } from '@/components/Chessboard'
+import {
+  heroExample,
+  thinkFirstExample,
+  reviewExample,
+  fenToBoardGrid,
+} from '@/lib/landingExamples'
 
 export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'analysis' | 'chat' | 'gamePlan'>('analysis')
+  const [activeTab, setActiveTab] = useState<'review' | 'evidence' | 'engineLines'>('review')
+  const [activeStage, setActiveStage] = useState<number>(0)
+  const [isPipelinePaused, setIsPipelinePaused] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (isPipelinePaused) return
+    const timer = setInterval(() => {
+      setActiveStage((prev) => (prev + 1) % 7)
+    }, 2800)
+    return () => clearInterval(timer)
+  }, [isPipelinePaused])
+
+  const heroGrid = fenToBoardGrid(heroExample.fen, heroExample.highlightSquare)
+  const thinkFirstGrid = fenToBoardGrid(thinkFirstExample.fen)
+  const reviewGrid = fenToBoardGrid(reviewExample.fen, reviewExample.highlightSquare)
+
+  const stages = [
+    { title: '1. Games / PGN', copy: 'Import Chess.com games or upload PGN.', icon: Gamepad2 },
+    { title: '2. Stockfish Analysis', copy: 'Find critical positions and validate chess truth.', icon: Settings2 },
+    { title: '3. Episode Memory', copy: 'Store what the learner saw, said, and played.', icon: Database },
+    { title: '4. Learner Model', copy: 'Update skills and evidence-backed hypotheses.', icon: Brain },
+    { title: '5. LLM Pedagogy', copy: 'Turn grounded facts into Socratic wording and explanations.', icon: MessageSquare },
+    { title: '6. Dream Cycle', copy: 'Consolidate the session and choose the next focus.', icon: Moon },
+    { title: '7. Personalized Coaching', copy: 'Adapt future questions, reviews, and practice.', icon: Target },
+  ]
+
+  const buildLinks = [
+    {
+      title: 'Public Build Log',
+      copy: 'Track product decisions, trade-offs, experiments, and day-by-day implementation progress.',
+      cta: 'Read BUILD_LOG.md',
+      icon: FileText,
+      href: 'https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/BUILD_LOG.md',
+    },
+    {
+      title: 'Canonical PRD',
+      copy: 'The frozen product source of truth: what Dr. Wolf Brain should do, why it exists, and what v1 deliberately does not attempt.',
+      cta: 'Read the PRD',
+      icon: BookOpen,
+      href: 'https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/PRD.md',
+    },
+    {
+      title: 'Engineering Build Spec',
+      copy: 'The implementation contract: database rules, trigger engine, grader, belief updates, API contracts, and test matrix.',
+      cta: 'Read the Build Spec',
+      icon: Code2,
+      href: 'https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/BUILD_SPEC.md',
+    },
+    {
+      title: 'Architecture & Decisions',
+      copy: 'See the memory pipeline, deterministic boundaries, evidence model, and engineering choices behind the demo.',
+      cta: 'View Architecture',
+      icon: Layers,
+      href: 'https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/docs/ARCHITECTURE.md',
+    },
+  ]
 
   return (
     <main className="min-h-screen text-[#361d14]">
       {/* 1. Header / Navigation */}
-      <header className="sticky top-0 z-50 bg-[#f5edd9]/95 backdrop-blur-md border-b border-[#d8c09a]/80 shadow-[0_2px_8px_rgba(80,50,20,0.04)]">
+      <header className="sticky top-0 z-50 bg-[#f6eedb]/95 backdrop-blur-md border-b border-[#d8c09a]/80 shadow-[0_2px_8px_rgba(80,50,20,0.04)]">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between">
           {/* Brand Logo */}
           <a href="#home" className="flex items-center gap-3 group">
@@ -62,24 +120,24 @@ export default function HomePage() {
             <a href="#learn" className="hover:text-[#b3782b] transition-colors">
               Learn
             </a>
-            <a href="#train" className="hover:text-[#b3782b] transition-colors">
+            <a href="#think-first" className="hover:text-[#b3782b] transition-colors">
               Train
             </a>
-            <a href="#about" className="hover:text-[#b3782b] transition-colors">
-              About
+            <a href="#how-it-works" className="hover:text-[#b3782b] transition-colors">
+              How It Works
             </a>
-            <a href="#docs" className="hover:text-[#b3782b] transition-colors">
-              Docs
+            <a href="#open" className="hover:text-[#b3782b] transition-colors">
+              Built in the Open
             </a>
           </nav>
 
           {/* Right Action Button */}
           <div className="hidden md:flex items-center">
             <a
-              href="#train"
+              href="#think-first"
               className="bg-[#361f14] hover:bg-[#23120b] text-[#fbf1dc] px-6 py-2.5 rounded-[6px] font-serif-custom text-[16px] font-semibold shadow-[0_3px_0_#1f1008] transition-all hover:translate-y-[-1px] active:translate-y-[1px]"
             >
-              Start Learning
+              Explore the Concept
             </a>
           </div>
 
@@ -111,32 +169,32 @@ export default function HomePage() {
               Learn
             </a>
             <a
-              href="#train"
+              href="#think-first"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
               Train
             </a>
             <a
-              href="#about"
+              href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
-              About
+              How It Works
             </a>
             <a
-              href="#docs"
+              href="#open"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
-              Docs
+              Built in the Open
             </a>
             <a
-              href="#train"
+              href="#think-first"
               onClick={() => setMobileMenuOpen(false)}
               className="inline-block text-center bg-[#361f14] text-[#fbf1dc] px-5 py-2.5 rounded-[6px] font-semibold mt-2"
             >
-              Start Learning
+              Explore the Concept
             </a>
           </div>
         )}
@@ -164,19 +222,24 @@ export default function HomePage() {
               </h2>
 
               {/* Body Description */}
-              <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#5c3e2d] leading-[1.45] max-w-[530px] mb-8">
-                Play, train, and get personalized guidance from Dr. Wolf. He analyzes your games,
-                explains the ideas in plain language, and adapts to your style over time.
+              <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#5c3e2d] leading-[1.45] max-w-[530px] mb-4">
+                Play, think, and learn with a coach that remembers how you reason, notices
+                recurring patterns, and adapts its questions over time.
+              </p>
+
+              <p className="font-serif-custom text-[14px] sm:text-[15px] text-[#826652] leading-relaxed max-w-[500px] mb-8">
+                Chess claims are checked against Stockfish. Learner insights are grounded in the
+                episodes you actually create.
               </p>
 
               {/* CTA Buttons */}
               <div className="flex flex-wrap items-center gap-4 mb-9">
                 <a
-                  href="#train"
+                  href="#think-first"
                   className="inline-flex items-center gap-2.5 bg-[#381f14] hover:bg-[#25130b] text-[#fcf1dc] px-7 py-3.5 rounded-[6px] font-serif-custom text-[17px] font-bold shadow-[0_3px_0_#200f07] transition-all hover:translate-y-[-2px] active:translate-y-[0px]"
                 >
                   <Play size={16} className="fill-[#fcf1dc]" />
-                  <span>Try It Now</span>
+                  <span>Preview Think First</span>
                 </a>
                 <a
                   href="#how-it-works"
@@ -190,9 +253,9 @@ export default function HomePage() {
               {/* Bottom Feature Badges */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-2 border-t border-[#d8c09a]/60">
                 <div className="flex items-center gap-2.5 text-[#543827]">
-                  <GraduationCap size={22} className="text-[#361f14] flex-shrink-0" />
+                  <Target size={22} className="text-[#361f14] flex-shrink-0" />
                   <span className="font-serif-custom text-[14px] leading-tight font-medium">
-                    Personalized chess coaching
+                    Personalized coaching
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5 text-[#543827]">
@@ -202,9 +265,9 @@ export default function HomePage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5 text-[#543827]">
-                  <BarChart3 size={22} className="text-[#361f14] flex-shrink-0" />
+                  <FileText size={22} className="text-[#361f14] flex-shrink-0" />
                   <span className="font-serif-custom text-[14px] leading-tight font-medium">
-                    Clear, practical explanations
+                    Evidence-backed explanations
                   </span>
                 </div>
               </div>
@@ -215,12 +278,20 @@ export default function HomePage() {
               <div className="parchment-window p-3 sm:p-4 bg-[#ecd4ab] border border-[#bfa075] rounded-[10px] shadow-[0_18px_38px_rgba(65,36,18,0.22)]">
                 {/* Window Header */}
                 <div className="flex items-center justify-between pb-3 px-1 border-b border-[#cca97f]">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                    </div>
+                    <span className="font-serif-custom text-[13px] font-bold text-[#5c3e27] ml-2">
+                      Dr. Wolf Brain
+                    </span>
                   </div>
-                  <div className="flex items-center gap-1 text-[#835a39]">
+                  <div className="flex items-center gap-2 text-[#835a39]">
+                    <span className="text-[11px] font-sans-custom uppercase tracking-wider font-semibold opacity-75">
+                      Illustrative prototype
+                    </span>
                     <Music2 size={15} />
                   </div>
                 </div>
@@ -232,7 +303,7 @@ export default function HomePage() {
                     <div className="w-12 h-12 rounded-[5px] overflow-hidden border border-[#c49e6f] flex-shrink-0 relative shadow-sm">
                       <Image
                         src="/dr_wolf_portrait.jpg"
-                        alt="Dr. Wolf"
+                        alt="Dr. Wolf prototype portrait"
                         fill
                         className="object-cover"
                       />
@@ -242,8 +313,8 @@ export default function HomePage() {
                         Dr. Wolf
                       </p>
                       <p className="font-serif-custom text-[14px] sm:text-[15px] text-[#4d3222] leading-snug">
-                        &ldquo;This is an interesting move. Let&apos;s look at what it accomplishes
-                        and what to consider next.&rdquo;
+                        &ldquo;This is an interesting position. What is your opponent&apos;s
+                        strongest reply?&rdquo;
                       </p>
                     </div>
                   </div>
@@ -252,35 +323,10 @@ export default function HomePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-start">
                     {/* Chess Board Area */}
                     <div className="sm:col-span-7 flex flex-col items-center">
-                      <ChessboardView position={defaultHeroPosition} showCoords={true} />
-
-                      {/* Navigation Controls Under Board */}
-                      <div className="flex items-center justify-center gap-4 mt-2.5 text-[#5e3f2b]">
-                        <button
-                          aria-label="First move"
-                          className="p-1 hover:text-[#2d170e] transition-colors"
-                        >
-                          <ChevronsLeft size={16} />
-                        </button>
-                        <button
-                          aria-label="Previous move"
-                          className="p-1 hover:text-[#2d170e] transition-colors"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <button
-                          aria-label="Next move"
-                          className="p-1 hover:text-[#2d170e] transition-colors"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                        <button
-                          aria-label="Last move"
-                          className="p-1 hover:text-[#2d170e] transition-colors"
-                        >
-                          <ChevronsRight size={16} />
-                        </button>
-                      </div>
+                      <ChessboardView position={heroGrid} showCoords={true} />
+                      <span className="text-[11px] font-sans-custom text-[#77553b] mt-2 italic">
+                        Example opening position
+                      </span>
                     </div>
 
                     {/* Right Side "Your Plan" Column */}
@@ -340,8 +386,8 @@ export default function HomePage() {
               A Coach Built Around You
             </h2>
             <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#604230] leading-relaxed">
-              Dr. Wolf Brain combines play, analysis, and personalized coaching to help you
-              understand chess more deeply and make steady progress.
+              Dr. Wolf Brain combines deliberate practice, learner memory, and evidence-backed
+              personalization to help you build better thinking habits — not just find better moves.
             </p>
           </div>
 
@@ -357,34 +403,43 @@ export default function HomePage() {
                   Think First
                 </h3>
               </div>
-              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-5">
-                Get in-game guidance that helps you think through positions, not just find moves.
+              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-4">
+                Get in-game guidance that helps you think through positions before seeing any
+                engine answer.
               </p>
 
               {/* Inset Board Preview with Coach Dialogue */}
               <div className="mt-auto relative rounded-[7px] overflow-hidden border border-[#d8be96] bg-[#deb887] p-2">
-                <ChessboardView position={thinkFirstPosition} showCoords={false} />
-                
+                <div className="flex justify-center">
+                  <ChessboardView position={thinkFirstGrid} showCoords={false} />
+                </div>
+
                 {/* Speech Overlay */}
-                <div className="absolute top-[32%] right-2 left-[38%] bg-[#fcf5e8] border border-[#cfb088] rounded-[6px] p-2.5 shadow-md">
+                <div className="absolute top-[30%] right-2 left-[36%] bg-[#fcf5e8] border border-[#cfb088] rounded-[6px] p-2.5 shadow-md">
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="font-serif-custom font-bold text-[11px] text-[#2d170e]">
                       Dr. Wolf
                     </span>
                   </div>
                   <p className="font-serif-custom text-[11px] text-[#4d3222] leading-tight">
-                    What are you trying to accomplish in this position?
+                    Before you move — what is your opponent threatening?
                   </p>
                 </div>
 
                 {/* Think button */}
                 <div className="absolute bottom-3 right-3">
-                  <button className="inline-flex items-center gap-1.5 bg-[#361f14] hover:bg-[#201008] text-[#fbf1dc] text-[11px] font-serif-custom font-semibold px-2.5 py-1.5 rounded shadow">
+                  <a
+                    href="#think-first"
+                    className="inline-flex items-center gap-1.5 bg-[#361f14] hover:bg-[#201008] text-[#fbf1dc] text-[11px] font-serif-custom font-semibold px-2.5 py-1.5 rounded shadow"
+                  >
                     <span>Think about plans</span>
                     <ArrowRight size={11} />
-                  </button>
+                  </a>
                 </div>
               </div>
+              <small className="font-sans-custom text-[11px] text-[#826652] block mt-3 text-center">
+                No engine verdict until the session summary.
+              </small>
             </div>
 
             {/* Card 2: Your Chess Brain */}
@@ -397,78 +452,73 @@ export default function HomePage() {
                   Your Chess Brain
                 </h3>
               </div>
-              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-5">
-                A personalized coach that learns from your games, remembers your patterns, and adapts
-                over time.
+              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-4">
+                A learner model that remembers patterns in your games and Think First sessions —
+                and updates only when evidence warrants.
               </p>
 
               {/* Inset Profile Card */}
               <div className="mt-auto parchment-inset rounded-[7px] p-4 border border-[#d8be96]">
-                <h4 className="font-serif-custom font-bold text-[16px] text-[#2d170e] mb-3 pb-2 border-b border-[#dfc7a4]">
-                  Your Profile Grows
-                </h4>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <span className="text-base leading-none text-[#361f14] mt-0.5">♟</span>
-                    <div>
-                      <strong className="block font-serif-custom font-bold text-[14px] text-[#2d170e]">
-                        Your openings
-                      </strong>
-                      <span className="block font-serif-custom text-[12px] text-[#6e4e39]">
-                        Learn the lines you play
-                      </span>
-                    </div>
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#dfc7a4]">
+                  <h4 className="font-serif-custom font-bold text-[16px] text-[#2d170e]">
+                    Learner State Model
+                  </h4>
+                  <span className="text-[10px] font-sans-custom uppercase tracking-wider font-semibold text-[#8b6343]">
+                    Illustrative
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between bg-[#fbf5e8] px-3 py-2 rounded border border-[#e2cca8]">
+                    <strong className="font-serif-custom font-bold text-[13px] text-[#2d170e]">
+                      Opponent threat detection
+                    </strong>
+                    <span className="text-[11px] font-sans-custom font-semibold text-[#528236]">
+                      Developing
+                    </span>
                   </div>
-                  <div className="flex items-start gap-2.5">
-                    <Repeat size={16} className="text-[#361f14] mt-0.5 flex-shrink-0" />
-                    <div>
-                      <strong className="block font-serif-custom font-bold text-[14px] text-[#2d170e]">
-                        Recurring themes
-                      </strong>
-                      <span className="block font-serif-custom text-[12px] text-[#6e4e39]">
-                        Recognize patterns in your games
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-between bg-[#fbf5e8] px-3 py-2 rounded border border-[#e2cca8]">
+                    <strong className="font-serif-custom font-bold text-[13px] text-[#2d170e]">
+                      King safety
+                    </strong>
+                    <span className="text-[11px] font-sans-custom font-semibold text-[#8b6343]">
+                      Not enough evidence
+                    </span>
                   </div>
-                  <div className="flex items-start gap-2.5">
-                    <Star size={16} className="text-[#361f14] mt-0.5 flex-shrink-0" />
-                    <div>
-                      <strong className="block font-serif-custom font-bold text-[14px] text-[#2d170e]">
-                        Strengths and gaps
-                      </strong>
-                      <span className="block font-serif-custom text-[12px] text-[#6e4e39]">
-                        Focus on what matters
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-between bg-[#fbf5e8] px-3 py-2 rounded border border-[#e2cca8]">
+                    <strong className="font-serif-custom font-bold text-[13px] text-[#2d170e]">
+                      Calculation depth
+                    </strong>
+                    <span className="text-[11px] font-sans-custom font-semibold text-[#528236]">
+                      Developing
+                    </span>
                   </div>
-                  <div className="flex items-start gap-2.5">
-                    <MessageSquare size={16} className="text-[#361f14] mt-0.5 flex-shrink-0" />
-                    <div>
-                      <strong className="block font-serif-custom font-bold text-[14px] text-[#2d170e]">
-                        Personalized advice
-                      </strong>
-                      <span className="block font-serif-custom text-[12px] text-[#6e4e39]">
-                        Get guidance tailored to your style
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-between bg-[#fbf5e8] px-3 py-2 rounded border border-[#e2cca8]">
+                    <strong className="font-serif-custom font-bold text-[13px] text-[#2d170e]">
+                      Thinking-pattern hypothesis
+                    </strong>
+                    <span className="text-[11px] font-sans-custom font-semibold text-[#b3782b]">
+                      Needs evidence
+                    </span>
                   </div>
                 </div>
               </div>
+              <small className="font-sans-custom text-[11px] text-[#826652] block mt-3 text-center">
+                Updates belief status only when episodes confirm it.
+              </small>
             </div>
 
             {/* Card 3: Why Did You Ask Me That? */}
             <div className="parchment-card p-5 sm:p-6 flex flex-col">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14]">
-                  <MessageSquare size={22} />
+                  <HelpCircle size={22} />
                 </div>
                 <h3 className="font-serif-custom text-[24px] font-bold text-[#2d170e]">
                   Why Did You Ask Me That?
                 </h3>
               </div>
-              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-5">
-                Every suggestion comes with a clear explanation, so you understand the why, not
-                just the what.
+              <p className="font-serif-custom text-[15px] text-[#5e412f] leading-snug mb-4">
+                Every personalized question can show the evidence behind it. No ungrounded claims.
               </p>
 
               {/* Inset Coach Explanation Card */}
@@ -487,32 +537,35 @@ export default function HomePage() {
                       Dr. Wolf
                     </strong>
                     <p className="font-serif-custom text-[12px] sm:text-[13px] text-[#4d3222] leading-snug mt-0.5">
-                      I asked because this move gives you space, improves your piece coordination,
-                      and fits the plan you&apos;ve been playing. It also avoids a common tactic in
-                      similar positions.
+                      &ldquo;I asked because this position matched an opponent-threat coaching
+                      trigger. In the working product, a learner-pattern claim appears here only
+                      when stored Think First episodes support it.&rdquo;
                     </p>
                   </div>
                 </div>
 
-                {/* Related Ideas */}
-                <div className="pt-2 border-t border-[#dfc7a4]">
-                  <span className="block font-serif-custom font-bold text-[12px] text-[#604230] mb-1">
-                    Related ideas:
+                {/* Example Evidence Model */}
+                <div className="pt-2.5 border-t border-[#dfc7a4]">
+                  <span className="block font-sans-custom font-bold text-[11px] uppercase tracking-wider text-[#604230] mb-1.5">
+                    Example evidence model
                   </span>
-                  <ul className="text-[12px] font-serif-custom text-[#4d3222] space-y-0.5">
-                    <li>• Control key central squares</li>
-                    <li>• Finish your development</li>
-                    <li>• Watch for opponent counterplay</li>
+                  <ul className="text-[12px] font-serif-custom text-[#4d3222] space-y-1">
+                    <li>• Current position → engine-backed trigger</li>
+                    <li>• Think First episodes → learner evidence</li>
+                    <li>• Imported positions → may seed a pattern, cannot confirm intent</li>
                   </ul>
                 </div>
               </div>
+              <small className="font-sans-custom text-[11px] text-[#826652] block mt-3 text-center">
+                Chess claims come from Stockfish. Learner claims come from stored evidence.
+              </small>
             </div>
           </div>
         </div>
       </section>
 
       {/* 4. Section: "Understand the Why Behind Every Move" */}
-      <section id="train" className="py-14 sm:py-20 bg-[#edd7b2]/40 border-y border-[#d8c09a]">
+      <section id="think-first" className="py-14 sm:py-20 bg-[#edd7b2]/40 border-y border-[#d8c09a]">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
           {/* Section Heading */}
           <div className="text-center max-w-[800px] mx-auto mb-12">
@@ -520,30 +573,44 @@ export default function HomePage() {
               Understand the Why Behind Every Move
             </h2>
             <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#604230] leading-relaxed">
-              Get clear, human-style explanations for your moves, mistakes, and your opponent&apos;s
-              plans. Turn every game into a learning opportunity.
+              Review what you were thinking, what you played, and what the position actually
+              required — after the game, not while you are still solving it.
             </p>
           </div>
 
           {/* Large Interactive Review Card */}
           <div className="parchment-window max-w-[1020px] mx-auto p-4 sm:p-6 bg-[#ecd4ab] border border-[#bfa075] rounded-[10px] shadow-[0_20px_45px_rgba(65,36,18,0.2)]">
-            {/* Window Dots */}
-            <div className="flex items-center gap-1.5 pb-4 border-b border-[#cca97f] mb-4">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
-              <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+            {/* Window Dots & Label */}
+            <div className="flex items-center justify-between pb-4 border-b border-[#cca97f] mb-4">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#af7f53]" />
+                <span className="font-serif-custom text-[13px] font-bold text-[#5c3e27] ml-2">
+                  Session Review Interface
+                </span>
+              </div>
+              <span className="text-[11px] font-sans-custom uppercase tracking-wider font-semibold text-[#7c5537]">
+                Illustrative review example
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
               {/* Chessboard Side */}
-              <div className="md:col-span-6 flex justify-center">
-                <div className="w-full max-w-[420px]">
+              <div className="md:col-span-6 flex flex-col items-center justify-center">
+                <div className="w-full max-w-[420px] flex justify-center">
                   <ChessboardView
-                    position={reviewPosition}
-                    arrow={{ from: [3, 4], to: [2, 5] }}
+                    position={reviewGrid}
+                    arrow={{
+                      from: reviewExample.illustratedMove!.from,
+                      to: reviewExample.illustratedMove!.to,
+                    }}
                     showCoords={true}
                   />
                 </div>
+                <span className="text-[11px] font-sans-custom text-[#77553b] mt-2 italic">
+                  Move illustrated: Nb1-c3 (legal development)
+                </span>
               </div>
 
               {/* Analysis & Tabs Side */}
@@ -551,40 +618,40 @@ export default function HomePage() {
                 {/* Tabs */}
                 <div className="flex items-center gap-6 border-b border-[#dfc7a4] pb-3 mb-4">
                   <button
-                    onClick={() => setActiveTab('analysis')}
+                    onClick={() => setActiveTab('review')}
                     className={`font-serif-custom text-[16px] font-bold pb-1 transition-all ${
-                      activeTab === 'analysis'
+                      activeTab === 'review'
                         ? 'text-[#2d170e] border-b-2 border-[#361f14]'
                         : 'text-[#8b6a52] hover:text-[#2d170e]'
                     }`}
                   >
-                    Analysis
+                    Review
                   </button>
                   <button
-                    onClick={() => setActiveTab('chat')}
+                    onClick={() => setActiveTab('evidence')}
                     className={`font-serif-custom text-[16px] font-bold pb-1 transition-all ${
-                      activeTab === 'chat'
+                      activeTab === 'evidence'
                         ? 'text-[#2d170e] border-b-2 border-[#361f14]'
                         : 'text-[#8b6a52] hover:text-[#2d170e]'
                     }`}
                   >
-                    Chat
+                    Evidence
                   </button>
                   <button
-                    onClick={() => setActiveTab('gamePlan')}
+                    onClick={() => setActiveTab('engineLines')}
                     className={`font-serif-custom text-[16px] font-bold pb-1 transition-all ${
-                      activeTab === 'gamePlan'
+                      activeTab === 'engineLines'
                         ? 'text-[#2d170e] border-b-2 border-[#361f14]'
                         : 'text-[#8b6a52] hover:text-[#2d170e]'
                     }`}
                   >
-                    Game Plan
+                    Engine Lines
                   </button>
                 </div>
 
                 {/* Tab Content */}
-                {activeTab === 'analysis' && (
-                  <div className="space-y-4">
+                {activeTab === 'review' && (
+                  <div className="space-y-3.5">
                     {/* Coach quote card */}
                     <div className="flex items-start gap-3 bg-[#f7eedb] border border-[#dfc7a4] p-3 rounded-[6px]">
                       <div className="w-12 h-12 rounded-[5px] overflow-hidden border border-[#c49e6f] flex-shrink-0 relative">
@@ -600,92 +667,76 @@ export default function HomePage() {
                           Dr. Wolf
                         </strong>
                         <p className="font-serif-custom text-[13px] text-[#4d3222] leading-snug mt-0.5">
-                          This move puts pressure on the center, develops your piece, and limits your
-                          opponent&apos;s options. It&apos;s a good practical choice in this position.
+                          Nc3 develops the queenside knight and adds control over central squares.
                         </p>
                       </div>
                     </div>
 
-                    {/* Feedback Items */}
-                    <div className="space-y-3 pt-1">
-                      {/* Good move */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-[#528236] flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Check size={12} className="text-white stroke-[3]" />
-                        </div>
-                        <div>
-                          <strong className="block font-serif-custom font-bold text-[15px] text-[#2d170e]">
-                            Good move
-                          </strong>
-                          <p className="font-serif-custom text-[13px] text-[#604230] leading-snug">
-                            You&apos;re increasing control in the center and developing a piece.
-                          </p>
-                        </div>
+                    {/* Socratic Rationale Blocks */}
+                    <div className="p-3 bg-[#f7eedb]/70 border border-[#dfc7a4] rounded-[6px] space-y-2 text-[13px] font-serif-custom">
+                      <div>
+                        <span className="font-sans-custom uppercase text-[10px] font-bold text-[#805e42] tracking-wider block">
+                          Your thinking
+                        </span>
+                        <p className="text-[#3b2416] italic mt-0.5">
+                          &ldquo;I wanted to develop a piece and improve my control of the
+                          center.&rdquo;
+                        </p>
                       </div>
-
-                      {/* Things to watch */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-[#d69818] flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Star size={12} className="text-white fill-white" />
-                        </div>
-                        <div>
-                          <strong className="block font-serif-custom font-bold text-[15px] text-[#2d170e]">
-                            Things to watch
-                          </strong>
-                          <p className="font-serif-custom text-[13px] text-[#604230] leading-snug">
-                            Be aware of potential counterplay on the king side.
-                          </p>
-                        </div>
+                      <div className="pt-2 border-t border-[#dfc7a4]/60">
+                        <span className="font-sans-custom uppercase text-[10px] font-bold text-[#805e42] tracking-wider block">
+                          Your move
+                        </span>
+                        <p className="text-[#2d170e] font-bold text-[15px] mt-0.5">Nc3</p>
                       </div>
-
-                      {/* Key idea */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-[#b3782b] flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Lightbulb size={12} className="text-white" />
-                        </div>
-                        <div>
-                          <strong className="block font-serif-custom font-bold text-[15px] text-[#2d170e]">
-                            Key idea
-                          </strong>
-                          <p className="font-serif-custom text-[13px] text-[#604230] leading-snug">
-                            You&apos;re following sound opening principles: develop, control the
-                            center, and keep your king safe.
-                          </p>
-                        </div>
+                      <div className="pt-2 border-t border-[#dfc7a4]/60">
+                        <span className="font-sans-custom uppercase text-[10px] font-bold text-[#805e42] tracking-wider block">
+                          Key idea
+                        </span>
+                        <p className="text-[#3b2416] mt-0.5">
+                          Develop the knight, improve central control, then reassess the
+                          opponent&apos;s forcing replies.
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {activeTab === 'chat' && (
-                  <div className="space-y-3 py-2">
-                    <p className="font-serif-custom text-[14px] text-[#4d3222]">
-                      <strong>Learner:</strong> Should I prepare d4 next move?
-                    </p>
-                    <p className="font-serif-custom text-[14px] text-[#4d3222] bg-[#f7eedb] p-3 rounded border border-[#dfc7a4]">
-                      <strong>Dr. Wolf:</strong> Yes, preparing d4 solidifies your center, but keep an
-                      eye on black&apos;s bishop aiming toward your kingside.
-                    </p>
+                {activeTab === 'evidence' && (
+                  <div className="space-y-3 py-1 font-serif-custom text-[13px] text-[#4d3222]">
+                    <div className="p-3 bg-[#f7eedb] border border-[#dfc7a4] rounded">
+                      <strong className="block font-bold text-[14px] text-[#2d170e] mb-1">
+                        Product Truth Model
+                      </strong>
+                      <p className="leading-relaxed">
+                        Chess facts in this example are intended to be engine-backed in the working
+                        product. Learner claims are created only from stored Think First evidence.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-[#f7eedb] border border-[#dfc7a4] rounded">
+                      <strong className="block font-bold text-[14px] text-[#2d170e] mb-1">
+                        Episode Grounding
+                      </strong>
+                      <p className="leading-relaxed">
+                        Stored episodes record what you saw and thought during critical moments,
+                        ensuring future advice directly addresses your demonstrated reasoning habits.
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                {activeTab === 'gamePlan' && (
-                  <div className="space-y-2.5 py-2">
-                    <div className="p-2.5 bg-[#f7eedb] border border-[#dfc7a4] rounded">
-                      <strong className="block text-[14px] font-serif-custom text-[#2d170e]">
-                        Short Term:
-                      </strong>
-                      <span className="text-[13px] font-serif-custom text-[#5e412f]">
-                        Castle kingside and connect your rooks.
+                {activeTab === 'engineLines' && (
+                  <div className="space-y-3 py-2 font-serif-custom text-[13px] text-[#4d3222]">
+                    <div className="p-3.5 bg-[#f7eedb] border border-[#dfc7a4] rounded text-center">
+                      <span className="font-sans-custom uppercase text-[11px] font-bold text-[#805e42] tracking-wider block mb-1">
+                        Example Interface
                       </span>
-                    </div>
-                    <div className="p-2.5 bg-[#f7eedb] border border-[#dfc7a4] rounded">
-                      <strong className="block text-[14px] font-serif-custom text-[#2d170e]">
-                        Long Term:
-                      </strong>
-                      <span className="text-[13px] font-serif-custom text-[#5e412f]">
-                        Use your active minor pieces to exploit open files on the queenside.
-                      </span>
+                      <p className="italic text-[#6b4e37]">
+                        Live engine data is not connected on the static landing page.
+                      </p>
+                      <p className="mt-2 text-[#3b2416]">
+                        Engine lines appear here after server-side Stockfish verification.
+                      </p>
                     </div>
                   </div>
                 )}
@@ -704,8 +755,8 @@ export default function HomePage() {
               A coach that remembers the right things
             </h2>
             <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#604230] leading-relaxed">
-              Dr. Wolf Brain goes beyond one-off analysis. It remembers what matters about your
-              games and focuses on the ideas that will help you improve.
+              Dr. Wolf Brain does not try to remember everything. It stores structured learning
+              evidence and uses it to decide what deserves to become a belief about the learner.
             </p>
           </div>
 
@@ -718,11 +769,11 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Follows Your Journey
+                  Evidence-backed memory
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Remembers your games, openings, preferences, and recurring themes so advice gets
-                  more relevant over time.
+                  Stores key positions, learner responses, moves, and outcomes as structured
+                  episodes — not endless chat history.
                 </p>
               </div>
             </div>
@@ -730,14 +781,15 @@ export default function HomePage() {
             {/* Card 2 */}
             <div className="parchment-card p-6 flex items-start gap-4">
               <div className="w-11 h-11 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] flex-shrink-0">
-                <MessageSquare size={22} />
+                <EyeOff size={22} />
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Explains Clearly
+                  Delayed reveal
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Turns complex ideas into plain language you can actually use in your next game.
+                  You think first. The engine verdict is withheld until the post-game summary so the
+                  learning moment stays yours.
                 </p>
               </div>
             </div>
@@ -745,14 +797,15 @@ export default function HomePage() {
             {/* Card 3 */}
             <div className="parchment-card p-6 flex items-start gap-4">
               <div className="w-11 h-11 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] flex-shrink-0">
-                <BarChart3 size={22} />
+                <Sparkles size={22} />
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Adapts to Your Level
+                  Skill tracking
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Adjusts explanations and training focus to your current strength and goals.
+                  Shows mastery only after enough evidence exists. Otherwise it states: &ldquo;Not
+                  enough evidence yet.&rdquo;
                 </p>
               </div>
             </div>
@@ -764,10 +817,11 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Finds Key Patterns
+                  Thinking-pattern hypotheses
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Spots recurring mistakes and missed opportunities.
+                  Forms revisable hypotheses only when Think First episodes actually test them
+                  across multiple games.
                 </p>
               </div>
             </div>
@@ -779,10 +833,11 @@ export default function HomePage() {
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Suggests a Plan
+                  Transfer practice
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Gives practical next steps based on your games and goals.
+                  Uses new positions to test whether the learner recognizes the same tactical idea
+                  in a different context.
                 </p>
               </div>
             </div>
@@ -790,119 +845,153 @@ export default function HomePage() {
             {/* Card 6 */}
             <div className="parchment-card p-6 flex items-start gap-4">
               <div className="w-11 h-11 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] flex-shrink-0">
-                <TrendingUp size={22} />
+                <Moon size={22} />
               </div>
               <div>
                 <h3 className="font-serif-custom font-bold text-[20px] text-[#2d170e] mb-1">
-                  Supports Long-Term Growth
+                  Dream Cycle
                 </h3>
                 <p className="font-serif-custom text-[14px] text-[#5e412f] leading-snug">
-                  Helps you build better habits and a deeper understanding of chess.
+                  At session end, deterministic code consolidates evidence, updates learner state,
+                  and selects the next focus.
                 </p>
+                <small className="font-sans-custom text-[11px] text-[#805e42] block mt-1">
+                  The LLM phrases the lesson. It does not own the score.
+                </small>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 6. Section: "FROM GAMES TO PERSONALIZED COACHING" */}
+      {/* 6. Section: "FROM GAMES TO PERSONALIZED COACHING" (7-Step Interactive Animated Pipeline) */}
       <section id="how-it-works" className="py-14 sm:py-20 bg-[#edd7b2]/30 border-y border-[#d8c09a]">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
           {/* Section Heading */}
           <div className="text-center max-w-[820px] mx-auto mb-12">
+            <p className="font-sans-custom uppercase tracking-[0.2em] text-[12px] font-bold text-[#8b5c36] mb-2">
+              HOW THE SYSTEM LEARNS
+            </p>
             <h2 className="font-serif-custom text-[28px] sm:text-[34px] font-bold text-[#2d170e] tracking-wide uppercase mb-3">
               FROM GAMES TO PERSONALIZED COACHING
             </h2>
             <p className="font-serif-custom text-[17px] sm:text-[19px] text-[#604230] leading-relaxed">
-              Your games power a continuous learning loop. Play, get detailed analysis, and receive
-              personalized coaching that adapts to your progress over time.
+              A continuous evidence pipeline turns real games and Think First sessions into adaptive
+              coaching.
             </p>
           </div>
 
-          {/* 5-Step Process Pipeline */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 relative">
-            {/* Step 1 */}
-            <div className="parchment-card p-4 sm:p-5 flex flex-col items-center text-center relative">
-              <div className="w-11 h-11 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                <Gamepad2 size={22} />
-              </div>
-              <h3 className="font-serif-custom font-bold text-[17px] text-[#2d170e] mb-1.5">
-                1. Play Games
-              </h3>
-              <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug">
-                Play on the board and build your game history.
-              </p>
-              <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-[#b3782b]">
-                <ArrowRight size={18} />
-              </div>
-            </div>
+          {/* 7-Step Process Pipeline with Smooth Interactive Highlights */}
+          <div
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3.5 relative"
+            onMouseEnter={() => setIsPipelinePaused(true)}
+            onMouseLeave={() => setIsPipelinePaused(false)}
+          >
+            {stages.map((st, i) => {
+              const Icon = st.icon
+              const isActive = activeStage === i
 
-            {/* Step 2 */}
-            <div className="parchment-card p-4 sm:p-5 flex flex-col items-center text-center relative">
-              <div className="w-11 h-11 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                <Settings size={22} />
-              </div>
-              <h3 className="font-serif-custom font-bold text-[17px] text-[#2d170e] mb-1.5">
-                2. Analyze
-              </h3>
-              <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug">
-                Get detailed, easy to understand analysis.
-              </p>
-              <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-[#b3782b]">
-                <ArrowRight size={18} />
-              </div>
-            </div>
+              return (
+                <div
+                  key={st.title}
+                  onClick={() => setActiveStage(i)}
+                  onMouseEnter={() => setActiveStage(i)}
+                  className={`cursor-pointer parchment-card p-3.5 sm:p-4 flex flex-col items-center text-center relative transition-all duration-300 ${
+                    isActive
+                      ? 'bg-[#fffdf7] border-[#b3782b] -translate-y-2 shadow-[0_14px_30px_rgba(179,120,43,0.22)] ring-1 ring-[#b3782b]/40'
+                      : 'hover:-translate-y-1 hover:border-[#c49a62]'
+                  }`}
+                >
+                  {/* Top Step Number Badge */}
+                  <span
+                    className={`text-[10px] font-sans-custom uppercase tracking-wider font-bold mb-1.5 px-2 py-0.5 rounded-full transition-colors ${
+                      isActive
+                        ? 'bg-[#361f14] text-[#fbf1dc]'
+                        : 'bg-[#ebd8b6] text-[#6e4e39]'
+                    }`}
+                  >
+                    Step 0{i + 1}
+                  </span>
 
-            {/* Step 3 */}
-            <div className="parchment-card p-4 sm:p-5 flex flex-col items-center text-center relative">
-              <div className="w-11 h-11 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                <Brain size={22} />
-              </div>
-              <h3 className="font-serif-custom font-bold text-[17px] text-[#2d170e] mb-1.5">
-                3. Learn & Adapt
-              </h3>
-              <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug">
-                Your coach learns from your games and patterns.
-              </p>
-              <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-[#b3782b]">
-                <ArrowRight size={18} />
-              </div>
-            </div>
+                  {/* Icon Container with Pulse Effect */}
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center mb-2.5 transition-all duration-300 ${
+                      isActive
+                        ? 'bg-[#361f14] text-[#fbf1dc] scale-110 shadow-md ring-4 ring-[#b3782b]/25'
+                        : 'bg-[#faebd4] border border-[#d4bc96] text-[#361f14]'
+                    }`}
+                  >
+                    <Icon size={20} className={isActive ? 'animate-pulse' : ''} />
+                  </div>
 
-            {/* Step 4 */}
-            <div className="parchment-card p-4 sm:p-5 flex flex-col items-center text-center relative">
-              <div className="w-11 h-11 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                <FileText size={22} />
-              </div>
-              <h3 className="font-serif-custom font-bold text-[17px] text-[#2d170e] mb-1.5">
-                4. Personalized Coaching
-              </h3>
-              <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug">
-                Get targeted guidance and training recommendations.
-              </p>
-              <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-[#b3782b]">
-                <ArrowRight size={18} />
-              </div>
-            </div>
+                  <h3
+                    className={`font-serif-custom font-bold text-[15px] mb-1 transition-colors ${
+                      isActive ? 'text-[#b3782b]' : 'text-[#2d170e]'
+                    }`}
+                  >
+                    {st.title.replace(/^\d+\.\s*/, '')}
+                  </h3>
+                  <p className="font-serif-custom text-[12px] text-[#5e412f] leading-snug">
+                    {st.copy}
+                  </p>
 
-            {/* Step 5 */}
-            <div className="parchment-card p-4 sm:p-5 flex flex-col items-center text-center">
-              <div className="w-11 h-11 rounded-full bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                <BarChart3 size={22} />
-              </div>
-              <h3 className="font-serif-custom font-bold text-[17px] text-[#2d170e] mb-1.5">
-                5. Improve Over Time
-              </h3>
-              <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug">
-                Build better habits and a deeper understanding of chess.
+                  {/* Connecting Arrow */}
+                  {i < stages.length - 1 && (
+                    <div
+                      className={`hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 ${
+                        isActive
+                          ? 'text-[#361f14] scale-125 translate-x-0.5'
+                          : 'text-[#b3782b]'
+                      }`}
+                    >
+                      <ArrowRight size={15} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Interactive Pipeline Step Details Banner */}
+          <div className="mt-6 p-4 bg-[#fbf5e8] border border-[#d8be96] rounded-[8px] shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left transition-all">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#b3782b] animate-ping flex-shrink-0" />
+              <p className="font-serif-custom text-[14px] sm:text-[15px] text-[#3b2416]">
+                <strong className="text-[#2d170e] font-bold">
+                  {stages[activeStage].title}:
+                </strong>{' '}
+                {stages[activeStage].copy}
               </p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {stages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveStage(i)}
+                  aria-label={`Go to step ${i + 1}`}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    activeStage === i
+                      ? 'w-5 bg-[#361f14]'
+                      : 'bg-[#cbb08a] hover:bg-[#8b6343]'
+                  }`}
+                />
+              ))}
             </div>
           </div>
+
+          {/* Core Principle Footer */}
+          <p className="font-serif-custom text-center text-[15px] text-[#6e4e39] mt-8 pt-4 border-t border-[#d8c09a]/60">
+            <strong className="text-[#2d170e]">Stockfish owns chess truth</strong> ·{' '}
+            <strong className="text-[#2d170e]">Evidence owns learner claims</strong> ·{' '}
+            <strong className="text-[#2d170e]">Deterministic code owns scores</strong> ·{' '}
+            <strong className="text-[#2d170e]">The LLM owns language</strong>
+          </p>
         </div>
       </section>
 
       {/* 7. Section: "Built in the Open" */}
-      <section id="docs" className="py-14 sm:py-20">
+      {/* NOTE: Keep repository public or update repository visibility before public launch */}
+      <section id="open" className="py-14 sm:py-20">
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6">
           {/* Section Heading */}
           <div className="text-center max-w-[760px] mx-auto mb-12">
@@ -910,72 +999,42 @@ export default function HomePage() {
               Built in the Open
             </h2>
             <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#604230] leading-relaxed">
-              Dr. Wolf Brain is being built transparently. Instead of invented social proof, this
-              project shows its real thinking, architecture, and build process.
+              No invented ratings. No fake testimonials. The proof is the product, the
+              architecture, the build history, and the decisions behind it.
             </p>
           </div>
 
-          {/* 4 Cards Grid */}
+          {/* 4 Cards Grid with Accessible Real Links */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Card 1 */}
-            <div className="parchment-card p-5 flex flex-col justify-between">
-              <div>
-                <div className="w-10 h-10 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                  <FileText size={20} />
-                </div>
-                <h3 className="font-serif-custom font-bold text-[18px] text-[#2d170e] mb-2">
-                  Public Build Log
-                </h3>
-                <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug mb-4">
-                  Track the product decisions, trade-offs, and day-by-day progress.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2 */}
-            <div className="parchment-card p-5 flex flex-col justify-between">
-              <div>
-                <div className="w-10 h-10 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                  <BookOpen size={20} />
-                </div>
-                <h3 className="font-serif-custom font-bold text-[18px] text-[#2d170e] mb-2">
-                  Canonical PRD
-                </h3>
-                <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug mb-4">
-                  The frozen product spec that defines what the coach should do and why.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 3 */}
-            <div className="parchment-card p-5 flex flex-col justify-between">
-              <div>
-                <div className="w-10 h-10 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                  <Code2 size={20} />
-                </div>
-                <h3 className="font-serif-custom font-bold text-[18px] text-[#2d170e] mb-2">
-                  Engineering Build Spec
-                </h3>
-                <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug mb-4">
-                  The implementation source of truth: schema, triggers, grading, and system boundaries.
-                </p>
-              </div>
-            </div>
-
-            {/* Card 4 */}
-            <div className="parchment-card p-5 flex flex-col justify-between">
-              <div>
-                <div className="w-10 h-10 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3">
-                  <Layers size={20} />
-                </div>
-                <h3 className="font-serif-custom font-bold text-[18px] text-[#2d170e] mb-2">
-                  Architecture & Decisions
-                </h3>
-                <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug mb-4">
-                  See the memory pipeline, evidence model, and key engineering choices.
-                </p>
-              </div>
-            </div>
+            {buildLinks.map((card) => {
+              const Icon = card.icon
+              return (
+                <a
+                  key={card.title}
+                  href={card.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="parchment-card p-5 flex flex-col justify-between group hover:translate-y-[-2px] focus:outline-none focus:ring-2 focus:ring-[#361f14]"
+                >
+                  <div>
+                    <div className="w-10 h-10 rounded-lg bg-[#faebd4] border border-[#d4bc96] flex items-center justify-center text-[#361f14] mb-3 group-hover:bg-[#f3dfbd] transition-colors">
+                      <Icon size={20} />
+                    </div>
+                    <h3 className="font-serif-custom font-bold text-[18px] text-[#2d170e] mb-2 flex items-center justify-between">
+                      <span>{card.title}</span>
+                      <ExternalLink size={14} className="text-[#8c6748] opacity-60 group-hover:opacity-100" />
+                    </h3>
+                    <p className="font-serif-custom text-[13px] text-[#5e412f] leading-snug mb-4">
+                      {card.copy}
+                    </p>
+                  </div>
+                  <span className="font-serif-custom text-[13px] font-bold text-[#361f14] group-hover:text-[#b3782b] flex items-center gap-1.5 transition-colors">
+                    <span>{card.cta}</span>
+                    <ArrowRight size={13} />
+                  </span>
+                </a>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -988,7 +1047,7 @@ export default function HomePage() {
           <div className="absolute inset-0 z-0 opacity-40 md:opacity-50">
             <Image
               src="/dr_wolf_footer_banner.jpg"
-              alt="Dr. Wolf in his chess library study"
+              alt="Dr. Wolf prototype study scene"
               fill
               className="object-cover object-left md:object-center"
             />
@@ -998,32 +1057,94 @@ export default function HomePage() {
 
           {/* Banner Content */}
           <div className="relative z-10 max-w-[1240px] mx-auto px-4 sm:px-6 py-16 w-full flex flex-col md:items-center text-center">
+            <p className="font-sans-custom uppercase tracking-[0.2em] text-[12px] font-bold text-[#d4ad7b] mb-2">
+              A GOOD AI COACH SHOULD SHOW ITS WORK
+            </p>
             <h2 className="font-serif-custom text-[36px] sm:text-[48px] font-bold text-[#fcf3e1] leading-tight mb-3">
-              Start Your Chess Learning Journey
+              Teach the coach.
+              <br />
+              Improve your chess.
             </h2>
             <p className="font-serif-custom text-[18px] sm:text-[20px] text-[#d6be9a] max-w-[640px] leading-relaxed mb-8">
-              Play, get personalized guidance, and build a deeper understanding of chess with Dr.
-              Wolf Brain.
+              Play a Think First session and help Dr. Wolf Brain learn one defensible thing about
+              how you think.
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-4">
               <a
-                href="#train"
+                href="#think-first"
                 className="inline-flex items-center gap-2.5 bg-[#f5edd9] hover:bg-[#fff7e6] text-[#361f14] px-7 py-3.5 rounded-[6px] font-serif-custom text-[17px] font-bold shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-all hover:translate-y-[-2px]"
               >
                 <Play size={16} className="fill-[#361f14]" />
-                <span>Try It Now</span>
+                <span>Preview Think First</span>
               </a>
               <a
-                href="#learn"
+                href="https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/docs/ARCHITECTURE.md"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 bg-[#2d180f]/70 hover:bg-[#2d180f] text-[#f7eed9] border border-[#a37c54] px-6 py-3.5 rounded-[6px] font-serif-custom text-[17px] font-bold transition-all hover:translate-y-[-2px]"
               >
-                <span>Learn More</span>
+                <span>Read the Architecture</span>
+                <ExternalLink size={15} />
               </a>
             </div>
           </div>
         </div>
       </section>
+
+      {/* 9. Site Footer (Compact & Balanced) */}
+      <footer className="border-t border-[#dfcca8] bg-[#f4ead6] py-4 sm:py-5 text-[#5e412f] text-[13px] font-serif-custom">
+        <div className="max-w-[1240px] mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+          {/* Brand & Slogan */}
+          <div className="flex items-center gap-2">
+            <span className="text-lg">♞</span>
+            <span className="font-bold text-[#2d170e]">Dr. Wolf Brain</span>
+            <span className="text-[#8b6343] text-[12px] hidden sm:inline">
+              — Learn Chess. Think Deeper.
+            </span>
+          </div>
+
+          {/* Quick Links */}
+          <div className="flex items-center gap-5 text-[13px] text-[#5e412f]">
+            <a href="#learn" className="hover:text-[#b3782b] transition-colors">
+              Product
+            </a>
+            <a href="#think-first" className="hover:text-[#b3782b] transition-colors">
+              Demo
+            </a>
+            <a
+              href="https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/docs/ARCHITECTURE.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#b3782b] transition-colors"
+            >
+              Architecture
+            </a>
+            <a
+              href="https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/BUILD_LOG.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#b3782b] transition-colors"
+            >
+              Build Log
+            </a>
+            <a
+              href="https://github.com/NikhilRaikwar/dr-wolf-brain/blob/main/PRD.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-[#b3782b] transition-colors"
+            >
+              PRD
+            </a>
+          </div>
+
+          {/* Clean Independent Disclaimer */}
+          <p className="text-[11.5px] text-[#826652] leading-tight md:text-right">
+            Independent product prototype.
+            <br className="hidden sm:inline" /> Not an official Chess.com product.
+          </p>
+        </div>
+      </footer>
     </main>
   )
 }

@@ -1,23 +1,27 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Cormorant_Garamond, Inter } from 'next/font/google'
+import { Newsreader, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 
-const cormorant = Cormorant_Garamond({
+const newsreader = Newsreader({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
   variable: '--font-serif',
+  display: 'swap',
 })
 
-const inter = Inter({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-sans',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
   title: 'Dr. Wolf Brain — An AI Chess Coach That Learns How You Think',
-  description: 'A personalized AI chess coach grounded in Stockfish analysis and evidence from the way you think.',
+  description:
+    'An experimental AI chess coach that runs Think First sessions, grounds claims in Stockfish, and models how you reason.',
   icons: {
     icon: [
       {
@@ -39,8 +43,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#efe0c2',
-  userScalable: false,
+  themeColor: '#f6eedb',
 }
 
 export default function RootLayout({
@@ -49,15 +52,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${newsreader.variable} ${plusJakartaSans.variable}`}>
       <body className="antialiased font-serif-custom">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
