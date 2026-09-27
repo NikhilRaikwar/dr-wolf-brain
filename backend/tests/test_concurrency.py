@@ -266,7 +266,7 @@ def test_postgres_concurrent_duplicate_dream_cycle():
     assert ev_count == 3
 
     bc_count = verify_db.query(BeliefChange).filter(BeliefChange.player_id == player_id).count()
-    assert bc_count == 2  # 1 for skill + 1 for hypothesis
+    assert bc_count == 1  # 1 for skill update reaching MIN_EVIDENCE_FOR_SCORE
 
     skill = (
         verify_db.query(LearnerSkill)
@@ -274,14 +274,14 @@ def test_postgres_concurrent_duplicate_dream_cycle():
         .first()
     )
     assert skill.evidence_count == 3
-    assert skill.mastery_score is not None
+    assert skill.mastery_score == 100.0
 
     hyp = (
         verify_db.query(models.Hypothesis)
         .filter(models.Hypothesis.player_id == player_id, models.Hypothesis.concept == "tunnel_vision_after_attack")
         .first()
     )
-    assert hyp.observed_count == 3
+    assert hyp.observed_count == 0  # unchanged because episodes were skill-only tests
 
     verify_db.close()
 
