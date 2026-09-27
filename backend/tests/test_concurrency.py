@@ -174,7 +174,7 @@ def test_postgres_concurrent_duplicate_dream_cycle():
     - No 500 internal server errors.
     """
     import uuid
-    from app.models import Player, Session as GameSession, Episode, EvidenceRecord, BeliefChange, DreamCycleRun
+    from app.models import Player, Session as GameSession, Episode, EvidenceRecord, BeliefChange, DreamCycleRun, LearnerSkill
     from app.dream.cycle import run_dream_cycle
     from app.beliefs.updater import ensure_initial_player_beliefs
 
