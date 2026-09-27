@@ -1,4 +1,4 @@
--- 002_evidence_source_claim_uniqueness.sql
+-- 002_evidence_uniqueness.sql
 -- Forward migration to enforce logical evidence record uniqueness
 
 DO $$

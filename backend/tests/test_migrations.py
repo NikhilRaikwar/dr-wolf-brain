@@ -41,9 +41,9 @@ def test_migration_sql_exists_and_has_11_tables():
 
 
 def test_002_migration_sql_exists_and_adds_uniqueness_constraint():
-    """Verify 002_evidence_source_claim_uniqueness.sql contains preflight check and unique constraint."""
+    """Verify 002_evidence_uniqueness.sql contains preflight check and unique constraint."""
     sql2_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "migrations", "002_evidence_source_claim_uniqueness.sql")
+        os.path.join(os.path.dirname(__file__), "..", "migrations", "002_evidence_uniqueness.sql")
     )
     assert os.path.exists(sql2_path), f"Missing migration file: {sql2_path}"
 
@@ -58,12 +58,12 @@ def test_002_migration_sql_exists_and_adds_uniqueness_constraint():
 
 
 def test_alembic_migration_parity():
-    """Verify Alembic 001_initial.py and 002_evidence_source_claim_uniqueness.py execute their respective SQL files."""
+    """Verify Alembic 001_initial.py and 002_evidence_uniqueness.py execute their respective SQL files."""
     rev1_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial.py")
     )
     rev2_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "002_evidence_source_claim_uniqueness.py")
+        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "002_evidence_uniqueness.py")
     )
     assert os.path.exists(rev1_path), f"Missing Alembic revision 001: {rev1_path}"
     assert os.path.exists(rev2_path), f"Missing Alembic revision 002: {rev2_path}"
@@ -77,7 +77,7 @@ def test_alembic_migration_parity():
     assert "001_initial.sql" in c1
 
     assert "down_revision: Union[str, None] = '001_initial'" in c2 or "down_revision = '001_initial'" in c2
-    assert "002_evidence_source_claim_uniqueness.sql" in c2
+    assert "002_evidence_uniqueness.sql" in c2
 
 
 @pytest.mark.postgres
