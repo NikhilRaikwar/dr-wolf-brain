@@ -199,6 +199,13 @@ class EvidenceRecord(Base):
     observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
+        UniqueConstraint(
+            "source_type",
+            "source_id",
+            "claim_type",
+            "concept",
+            name="uq_evidence_source_claim_concept",
+        ),
         CheckConstraint(
             "source_type IN ('imported_position', 'think_first_episode')",
             name="chk_ev_source_type",

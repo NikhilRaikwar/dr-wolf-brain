@@ -31,24 +31,53 @@ def test_migration_sql_exists_and_has_11_tables():
             f"Table {table} missing from 001_initial.sql"
         )
 
-    # Assert epistemology CHECK constraint exists
+    # Assert epistemology CHECK constraint exists in 001
     assert "no_import_hypothesis_claims" in content
     assert "NOT (source_type='imported_position' AND claim_type='hypothesis'" in content or \
            "NOT (source_type = 'imported_position' AND claim_type = 'hypothesis'" in content
 
+    # Assert 001_initial is historical and does NOT contain 002 constraint
+    assert "uq_evidence_source_claim_concept" not in content
 
-def test_alembic_migration_parity():
-    """Verify Alembic 001_initial.py executes 001_initial.sql."""
-    alembic_rev_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial.py")
+
+def test_002_migration_sql_exists_and_adds_uniqueness_constraint():
+    """Verify 002_evidence_source_claim_uniqueness.sql contains preflight check and unique constraint."""
+    sql2_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "migrations", "002_evidence_source_claim_uniqueness.sql")
     )
-    assert os.path.exists(alembic_rev_path), f"Missing Alembic revision: {alembic_rev_path}"
+    assert os.path.exists(sql2_path), f"Missing migration file: {sql2_path}"
 
-    with open(alembic_rev_path, "r", encoding="utf-8") as f:
+    with open(sql2_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    assert "001_initial.sql" in content
-    assert "op.execute(sql_statements)" in content
+    assert "uq_evidence_source_claim_concept" in content
+    assert "UNIQUE (source_type, source_id, claim_type, concept)" in content or \
+           "UNIQUE(source_type, source_id, claim_type, concept)" in content
+    assert "HAVING COUNT(*) > 1" in content
+    assert "RAISE EXCEPTION" in content
+
+
+def test_alembic_migration_parity():
+    """Verify Alembic 001_initial.py and 002_evidence_source_claim_uniqueness.py execute their respective SQL files."""
+    rev1_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial.py")
+    )
+    rev2_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "002_evidence_source_claim_uniqueness.py")
+    )
+    assert os.path.exists(rev1_path), f"Missing Alembic revision 001: {rev1_path}"
+    assert os.path.exists(rev2_path), f"Missing Alembic revision 002: {rev2_path}"
+
+    with open(rev1_path, "r", encoding="utf-8") as f:
+        c1 = f.read()
+    with open(rev2_path, "r", encoding="utf-8") as f:
+        c2 = f.read()
+
+    assert "001_initial" in c1
+    assert "001_initial.sql" in c1
+
+    assert "down_revision: Union[str, None] = '001_initial'" in c2 or "down_revision = '001_initial'" in c2
+    assert "002_evidence_source_claim_uniqueness.sql" in c2
 
 
 @pytest.mark.postgres
@@ -88,15 +117,19 @@ def test_postgres_alembic_migration_inspection():
         f"Alembic PostgreSQL migration missing tables: {expected_tables - tables}"
     )
 
-    # Inspect CHECK constraints on evidence_records
+    # Inspect constraints on evidence_records
     with engine.connect() as conn:
         result = conn.execute(text("""
-            SELECT conname, pg_get_constraintdef(oid) 
+            SELECT conname, contype 
             FROM pg_constraint 
-            WHERE conrelid = 'evidence_records'::regclass AND contype = 'c';
+            WHERE conrelid = 'evidence_records'::regclass;
         """)).fetchall()
 
-        constraint_names = [row[0] for row in result]
-        assert "no_import_hypothesis_claims" in constraint_names, (
-            f"Missing constraint 'no_import_hypothesis_claims' on evidence_records. Found: {constraint_names}"
+        constraints_by_name = {row[0]: row[1] for row in result}
+        assert "no_import_hypothesis_claims" in constraints_by_name, (
+            f"Missing check constraint 'no_import_hypothesis_claims' on evidence_records"
         )
+        assert "uq_evidence_source_claim_concept" in constraints_by_name, (
+            f"Missing unique constraint 'uq_evidence_source_claim_concept' on evidence_records"
+        )
+

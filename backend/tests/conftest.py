@@ -25,6 +25,17 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+from sqlalchemy import event
+
+@event.listens_for(engine, "connect")
+def do_connect(dbapi_connection, connection_record):
+    dbapi_connection.isolation_level = None
+
+@event.listens_for(engine, "begin")
+def do_begin(conn):
+    conn.exec_driver_sql("BEGIN")
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="function", autouse=True)

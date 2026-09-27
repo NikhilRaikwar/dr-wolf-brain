@@ -87,3 +87,77 @@ def test_real_postgres_concurrent_duplicate_moves():
             assert reconstructed.fen() == pos_data["fen"]
 
     app.dependency_overrides.clear()
+
+
+@pytest.mark.postgres
+def test_postgres_concurrent_duplicate_evidence_write():
+    """Real PostgreSQL concurrency test:
+    Two independent DB sessions concurrently race to write the exact same logical evidence claim:
+    (source_type, source_id, claim_type, concept).
+    Using the DB unique constraint and Session.begin_nested() savepoint handling:
+    - Exactly one evidence_records row survives in the database.
+    - Exactly one session creates the row (created_new=True), the other returns existing (created_new=False).
+    - Both transactions remain valid and can commit cleanly.
+    """
+    import uuid
+    from app.models import Player, EvidenceRecord
+    from app.beliefs.updater import write_evidence_record
+
+    pg_url = os.environ.get("POSTGRES_TEST_DATABASE_URL", os.environ.get("DATABASE_URL", ""))
+    if not pg_url.startswith("postgresql"):
+        pytest.skip("PostgreSQL not configured in test environment")
+
+    pg_engine = create_engine(pg_url)
+    try:
+        with pg_engine.connect() as conn:
+            pass
+    except Exception as e:
+        pytest.skip(f"PostgreSQL connection failed: {e}")
+
+    Base.metadata.create_all(bind=pg_engine)
+    PgSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=pg_engine)
+
+    init_db = PgSessionLocal()
+    player = Player(username="concurrency_test_player")
+    init_db.add(player)
+    init_db.commit()
+    player_id = player.id
+    init_db.close()
+
+    source_id = uuid.uuid4()
+
+    def worker_write_evidence():
+        db = PgSessionLocal()
+        try:
+            rec, created = write_evidence_record(
+                db=db,
+                player_id=player_id,
+                source_type="think_first_episode",
+                source_id=source_id,
+                claim_type="skill",
+                concept="opponent_threat_detection",
+                direction="supports",
+            )
+            db.commit()
+            return rec.id, created
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f1 = executor.submit(worker_write_evidence)
+        f2 = executor.submit(worker_write_evidence)
+        id1, created1 = f1.result()
+        id2, created2 = f2.result()
+
+    assert id1 == id2
+    assert sorted([created1, created2]) == [False, True]
+
+    verify_db = PgSessionLocal()
+    rows = verify_db.query(EvidenceRecord).filter(EvidenceRecord.source_id == source_id).all()
+    assert len(rows) == 1
+    assert rows[0].id == id1
+    verify_db.close()
+

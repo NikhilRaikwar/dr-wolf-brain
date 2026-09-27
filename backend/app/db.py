@@ -10,6 +10,18 @@ if database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 engine = create_engine(database_url, connect_args=connect_args)
+
+if database_url.startswith("sqlite"):
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def do_connect(dbapi_connection, connection_record):
+        dbapi_connection.isolation_level = None
+
+    @event.listens_for(engine, "begin")
+    def do_begin(conn):
+        conn.exec_driver_sql("BEGIN")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -19,3 +31,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

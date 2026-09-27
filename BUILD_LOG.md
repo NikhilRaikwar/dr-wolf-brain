@@ -110,3 +110,41 @@
     - If Stockfish fails during grading, the transaction fails closed, the episode status remains `committed`, and the endpoint returns HTTP 503 without persisting unverified chess data.
   - **Mid-Game UI Integrity:**
     - No mid-game grading verdict, engine lines, centipawn loss, or best move suggestions are revealed during live play.
+
+## Milestone 6: Evidence & Belief Updater
+- **Date:** 2026-09-27
+- **Focus:** Built canonical evidence records, deterministic skill mastery updater, hypothesis meaningful-test updater, and belief changelog (`graded episodes → evidence records → belief changes`).
+- **Decisions & Implementation:**
+  - **No Invented Mastery Prior (`MIN_EVIDENCE_FOR_SCORE = 3`):**
+    - Newly created skill rows start with `mastery_score = NULL`, `evidence_count = 0`, and `trend = "new"`.
+    - No numeric mastery score is displayed until at least 3 qualifying evidence records exist for that skill concept.
+    - Initial mastery is computed strictly from the weighted average of those first qualifying records (Think First = 1.0, Imported = 0.5):
+      $$\text{mastery\_score} = \frac{\sum(\text{TF} \times 1.0) + \sum(\text{Imported} \times 0.5)}{\text{TF\_count} \times 1.0 + \text{Imported\_count} \times 0.5} \times 100$$
+    - The minimum 3-evidence threshold applies to record count, not weighted count.
+  - **Ongoing Skill Updates (Weighted Moving Averages):**
+    - For new Think First evidence:
+      $$\text{mastery\_new} = \text{clamp}(0.7 \times \text{mastery\_old} + 0.3 \times \text{session\_score}, 0, 100)$$
+    - For new Imported evidence:
+      $$\text{mastery\_new} = \text{clamp}(0.85 \times \text{mastery\_old} + 0.15 \times \text{import\_score}, 0, 100)$$
+    - Outcome score mapping: `recognized` $\rightarrow 1.0$, `partial` $\rightarrow 0.5$, `missed` $\rightarrow 0.0$.
+    - Mastery derives strictly from reasoning outcome, preserving the core thesis (*Right move != Right reasoning*). Move quality never alters skill mastery.
+  - **Meaningful-Test Requirement for Hypotheses:**
+    - Trigger type alone never proves a thinking-pattern hypothesis was tested.
+    - `tunnel_vision_after_attack`: Candidate trigger `opponent_threat` is meaningful ONLY if learner previously expressed attacking intent (via attacking choice key, free-text keywords, or recent session choices).
+    - `stops_calculating_early`: Candidate trigger `forcing_candidate` is meaningful ONLY when the canonical `forcing_candidate_another_candidate` question was selected.
+    - `misses_defensive_resources`: Candidate trigger `hanging` is meaningful ONLY when the canonical `hanging_under_attack` question was selected.
+    - Episodes failing the meaningful-test predicate do NOT increment `observed_count` and do NOT modify confidence.
+  - **Hypothesis Confidence & State Progression:**
+    - Only meaningful Think First tests modify confidence (+0.08 support / -0.12 contradict, clamped to [0.05, 0.95]).
+    - State transitions:
+      - $\text{observed\_count} < 3 \implies \mathbf{\text{suspected}}$
+      - $\text{confidence} < 0.25 \implies \mathbf{\text{needs\_evidence}}$
+      - $0.25 \le \text{confidence} \le 0.60 \implies \mathbf{\text{developing}}$
+      - $\text{confidence} > 0.60 \implies \mathbf{\text{well\_supported}}$
+  - **Strict Epistemology Rule on Imports:**
+    - Imported positions may only seed hypotheses (`direction="seeds"`, `state="suspected"`).
+    - The PostgreSQL CHECK constraint `no_import_hypothesis_claims` rejects any attempt by imported positions to `supports` or `contradicts` hypotheses.
+  - **Auditable Belief Changelog & Idempotency:**
+    - Every actual change to skill mastery, evidence count, hypothesis confidence, or state appends a deterministic row to `belief_changes`.
+    - `process_new_graded_evidence` is fully idempotent: re-running against already-processed graded episodes performs 0 redundant writes and leaves all scores, counts, and changelogs unchanged.
+
