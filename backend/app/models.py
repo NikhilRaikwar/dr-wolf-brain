@@ -162,6 +162,9 @@ class Skill(Base):
     )
 
 
+LearnerSkill = Skill
+
+
 class Hypothesis(Base):
     __tablename__ = "hypotheses"
 
@@ -232,8 +235,8 @@ class BeliefChange(Base):
     player_id = Column(GUID(), ForeignKey("players.id", ondelete="CASCADE"), nullable=False, index=True)
     claim_type = Column(String, nullable=False)  # 'skill' | 'hypothesis'
     concept = Column(String, nullable=False)
-    old_value = Column(JSON, nullable=True)
-    new_value = Column(JSON, nullable=True)
+    old_value = Column(JSON(none_as_null=True), nullable=True)
+    new_value = Column(JSON(none_as_null=True), nullable=True)
     reason = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -266,3 +269,13 @@ class DreamCycleRun(Base):
 
     session_id = Column(GUID(), ForeignKey("sessions.id", ondelete="CASCADE"), primary_key=True)
     ran_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    status = Column(String, nullable=False, default="processing")
+    result_json = Column(JSON, nullable=False, default=dict)
+    language_json = Column(JSON(none_as_null=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('processing', 'complete')",
+            name="chk_dream_cycle_run_status",
+        ),
+    )

@@ -422,13 +422,23 @@ def process_new_graded_evidence(
     ensure_initial_player_beliefs(db, player_id)
 
     # 1. Fetch graded episodes
-    query = (
-        db.query(Episode)
-        .filter(Episode.player_id == player_id, Episode.status == "graded")
-    )
-    if episode_ids:
-        query = query.filter(Episode.id.in_(episode_ids))
-    episodes = query.order_by(Episode.created_at.asc()).all()
+    if episode_ids is not None:
+        if len(episode_ids) == 0:
+            episodes = []
+        else:
+            episodes = (
+                db.query(Episode)
+                .filter(Episode.player_id == player_id, Episode.status == "graded", Episode.id.in_(episode_ids))
+                .order_by(Episode.created_at.asc())
+                .all()
+            )
+    else:
+        episodes = (
+            db.query(Episode)
+            .filter(Episode.player_id == player_id, Episode.status == "graded")
+            .order_by(Episode.created_at.asc())
+            .all()
+        )
 
     skill_changes = []
     hypothesis_changes = []
@@ -511,4 +521,5 @@ def process_new_graded_evidence(
         "new_evidence_count": new_skill_evidence_count,
         "skill_changes": len(skill_changes),
         "hypothesis_changes": len(hypothesis_changes),
+        "belief_changes": skill_changes + hypothesis_changes,
     }

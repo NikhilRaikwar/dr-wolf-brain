@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 import httpx
 
 from app.config import settings
+from app.schemas import DreamCycleLanguage
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,35 @@ class FreeTextGrade(BaseModel):
     identified_concrete_threat: bool = False
     identified_relevant_piece: bool = False
     evidence_phrase: Optional[str] = None
+
+
+def get_fallback_dream_cycle_language(
+    session_facts: Dict[str, Any],
+    belief_changes: list,
+    next_focus: Optional[str],
+) -> DreamCycleLanguage:
+    count = session_facts.get("graded_episode_count", 0)
+    summary = f"You completed {count} Think First moments this session."
+
+    if belief_changes:
+        first = belief_changes[0]
+        first_concept = first.get("concept") if isinstance(first, dict) else getattr(first, "concept", None)
+        concept_display = str(first_concept).replace("_", " ") if first_concept else "chess concepts"
+        takeaway = f"Your strongest evidence change this session was in {concept_display}."
+    else:
+        takeaway = "Solid effort across all positions played this session."
+
+    if next_focus:
+        focus_display = str(next_focus).replace("_", " ")
+        focus_phrase = f"Next, focus on {focus_display}."
+    else:
+        focus_phrase = "Keep playing more Think First moments so the coach can build enough evidence."
+
+    return DreamCycleLanguage(
+        session_summary=summary,
+        key_takeaway=takeaway,
+        next_focus_phrase=focus_phrase,
+    )
 
 
 class LLMClient:
@@ -113,3 +143,81 @@ class LLMClient:
             f"LLM failure/exhaustion for input_hash={input_hash}; falling back to conservative FreeTextGrade."
         )
         return FreeTextGrade()
+
+    def generate_dream_cycle_language(
+        self,
+        session_facts: Dict[str, Any],
+        belief_changes: list,
+        next_focus: Optional[str],
+    ) -> DreamCycleLanguage:
+        """Generate structured Dream Cycle language from verified facts with deterministic fallback."""
+        fallback = get_fallback_dream_cycle_language(session_facts, belief_changes, next_focus)
+        if not self.api_key:
+            logger.info("OpenRouter API key not configured; using deterministic fallback for Dream Cycle language.")
+            return fallback
+
+        input_data = {
+            "session_facts": session_facts,
+            "belief_changes": [b if isinstance(b, dict) else b.model_dump() for b in belief_changes],
+            "next_focus": next_focus,
+        }
+        input_hash = hashlib.sha256(
+            json.dumps(input_data, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()[:12]
+        logger.info(f"LLM dream cycle request model={self.model} input_hash={input_hash}")
+
+        system_prompt = (
+            "You are Dr. Wolf's wording assistant. STRICT RULES:\n"
+            "1. You receive verified chess and learner facts. Never invent learner patterns, chess claims, frequencies, scores, or evidence.\n"
+            "2. Phrase only what is present in the supplied facts.\n"
+            "3. Return valid JSON matching the schema with fields: "
+            "session_summary (string), key_takeaway (string), next_focus_phrase (string or null)."
+        )
+
+        user_prompt = (
+            f"Supplied Session Facts: {json.dumps(session_facts, default=str)}\n"
+            f"Belief Changes: {json.dumps([b if isinstance(b, dict) else b.model_dump() for b in belief_changes], default=str)}\n"
+            f"Next Focus Concept: {next_focus or 'None (not enough evidence)'}\n\n"
+            "Provide encouraging, concise wording phrasing ONLY these supplied facts."
+        )
+
+        for attempt in range(3):
+            try:
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://drwolfbrain.app",
+                    "X-Title": "Dr. Wolf Brain",
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.0,
+                }
+                with httpx.Client(timeout=10.0) as client:
+                    resp = client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        content = data["choices"][0]["message"]["content"]
+                        parsed = json.loads(content)
+                        return DreamCycleLanguage.model_validate(parsed)
+                    else:
+                        logger.warning(
+                            f"OpenRouter attempt {attempt + 1} failed HTTP {resp.status_code}: {resp.text}"
+                        )
+            except Exception as e:
+                logger.warning(f"OpenRouter attempt {attempt + 1} error: {e}")
+
+        logger.info(
+            f"LLM failure/exhaustion for input_hash={input_hash}; falling back to deterministic wording."
+        )
+        return fallback
+

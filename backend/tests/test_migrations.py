@@ -57,27 +57,54 @@ def test_002_migration_sql_exists_and_adds_uniqueness_constraint():
     assert "RAISE EXCEPTION" in content
 
 
+def test_003_migration_sql_exists_and_adds_columns():
+    """Verify 003_dream_cycle_result_persistence.sql adds status, result_json, and language_json columns with preflight check."""
+    sql3_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "migrations", "003_dream_cycle_result_persistence.sql")
+    )
+    assert os.path.exists(sql3_path), f"Missing migration file: {sql3_path}"
+
+    with open(sql3_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "result_json" in content
+    assert "language_json" in content
+    assert "status" in content
+    assert "chk_dream_cycle_run_status" in content
+    assert "legacy_count" in content
+    assert "RAISE EXCEPTION" in content
+    assert "dream_cycle_runs" in content
+
+
 def test_alembic_migration_parity():
-    """Verify Alembic 001_initial.py and 002_evidence_uniqueness.py execute their respective SQL files."""
+    """Verify Alembic revisions 001, 002, and 003 form a valid migration chain."""
     rev1_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial.py")
     )
     rev2_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "002_evidence_uniqueness.py")
     )
+    rev3_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "003_dream_cycle_result_persistence.py")
+    )
     assert os.path.exists(rev1_path), f"Missing Alembic revision 001: {rev1_path}"
     assert os.path.exists(rev2_path), f"Missing Alembic revision 002: {rev2_path}"
+    assert os.path.exists(rev3_path), f"Missing Alembic revision 003: {rev3_path}"
 
     with open(rev1_path, "r", encoding="utf-8") as f:
         c1 = f.read()
     with open(rev2_path, "r", encoding="utf-8") as f:
         c2 = f.read()
+    with open(rev3_path, "r", encoding="utf-8") as f:
+        c3 = f.read()
 
     assert "001_initial" in c1
     assert "001_initial.sql" in c1
 
     assert "down_revision: Union[str, None] = '001_initial'" in c2 or "down_revision = '001_initial'" in c2
-    assert "002_evidence_uniqueness.sql" in c2
+    assert "down_revision: Union[str, None] = '002_evidence_uniqueness'" in c3 or "down_revision = '002_evidence_uniqueness'" in c3
+    assert "003_dream_cycle_persistence" in c3
+    assert "003_dream_cycle_result_persistence.sql" in c3
 
 
 @pytest.mark.postgres

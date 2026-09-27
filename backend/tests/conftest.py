@@ -34,7 +34,10 @@ def do_connect(dbapi_connection, connection_record):
 
 @event.listens_for(engine, "begin")
 def do_begin(conn):
-    conn.exec_driver_sql("BEGIN")
+    try:
+        conn.exec_driver_sql("BEGIN")
+    except Exception:
+        pass
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -120,3 +120,62 @@ class PathResponse(BaseModel):
     next_milestone: str
     stages: List[str]               # ["understand","recognize","apply","transfer","verify"]
     transfer_positions: List[Dict[str, Any]]  # 3 FENs with concept+difficulty
+
+# --- dream cycle ---
+class DreamCycleRequest(BaseModel):
+    session_id: UUID
+
+class ReasoningCounts(BaseModel):
+    recognized: int = 0
+    partial: int = 0
+    missed: int = 0
+
+class MoveCounts(BaseModel):
+    best: int = 0
+    acceptable: int = 0
+    inaccurate: int = 0
+    mistake: int = 0
+
+class BeliefChangeItem(BaseModel):
+    claim_type: str
+    concept: str
+    old_value: Optional[Dict[str, Any]] = None
+    new_value: Optional[Dict[str, Any]] = None
+    reason: Optional[str] = None
+    created_at: Optional[str] = None
+
+class TransferPositionItem(BaseModel):
+    id: UUID
+    fen: str
+    concept: str
+    difficulty: int
+    tactical_theme: Optional[str] = None
+    source: Optional[str] = None
+    verified: bool = True
+
+class SessionFacts(BaseModel):
+    session_id: UUID
+    player_id: UUID
+    graded_episode_count: int
+    reasoning_counts: ReasoningCounts
+    move_counts: MoveCounts
+    concept_counts: Dict[str, int]
+    belief_changes: List[BeliefChangeItem]
+    next_focus: Optional[str] = None
+    transfer_position_ids: List[UUID] = Field(default_factory=list)
+
+class DreamCycleLanguage(BaseModel):
+    session_summary: str
+    key_takeaway: str
+    next_focus_phrase: Optional[str] = None
+
+class DreamCycleResult(BaseModel):
+    session_id: UUID
+    player_id: UUID
+    ran_at: str
+    session_facts: SessionFacts
+    language: DreamCycleLanguage
+    next_focus: Optional[str] = None
+    transfer_positions: List[TransferPositionItem] = Field(default_factory=list)
+    belief_changes: List[BeliefChangeItem] = Field(default_factory=list)
+
