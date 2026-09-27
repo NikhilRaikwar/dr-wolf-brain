@@ -211,7 +211,9 @@ def test_postgres_concurrent_duplicate_dream_cycle():
     for i in range(3):
         ep = Episode(
             session_id=session.id,
+            player_id=player.id,
             move_number=i + 1,
+            fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
             status="graded",
             trigger_evidence={"type": "opponent_threat", "concept": "opponent_threat_detection", "question_id": "threat_defend"},
             engine_truth={"concept": "opponent_threat_detection", "best_move": "e2e4"},
