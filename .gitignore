@@ -29,3 +29,4 @@ backend/stockfish_bin/
 *.db
 *.sqlite
 *.sqlite3
+temp/

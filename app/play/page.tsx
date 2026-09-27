@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { InteractiveChessboard } from '@/components/InteractiveChessboard'
 import { SocraticModal, InterruptionData } from '@/components/SocraticModal'
+import { DemoBanner } from '@/components/dashboard'
 import { Chess } from 'chess.js'
 
 interface SessionState {
@@ -78,7 +79,29 @@ export default function PlayPage() {
         }
       }
 
-      // Start new session
+      // Check explicit demo mode
+      const urlParams = new URLSearchParams(window.location.search)
+      const isDemo = urlParams.get('demo') === '1'
+
+      if (isDemo) {
+        setSession({
+          session_id: 'demo-isolated-session',
+          requested_engine_elo: 900,
+          effective_engine_elo: 900,
+          engine_mode: 'skill_floor',
+          color: 'white',
+          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+          moves_uci: [],
+          ply_count: 0,
+          game_over: false,
+          result: null,
+        })
+        setLastMove(null)
+        setIsLoading(false)
+        return
+      }
+
+      // Start new live session (strict server-authoritative truth)
       const startRes = await fetch('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -86,7 +109,10 @@ export default function PlayPage() {
       })
 
       if (!startRes.ok) {
-        throw new Error(`Failed to start session: ${startRes.statusText}`)
+        setSession(null)
+        setErrorMsg(`Failed to start session: Backend returned HTTP ${startRes.status} (${startRes.statusText})`)
+        setIsLoading(false)
+        return
       }
 
       const startData = await startRes.json()
@@ -106,8 +132,8 @@ export default function PlayPage() {
       localStorage.setItem('dr_wolf_session_id', startData.session_id)
       window.history.replaceState(null, '', `/play?session_id=${startData.session_id}`)
     } catch (err: any) {
-      console.error(err)
-      setErrorMsg(err.message || 'Could not connect to session server.')
+      setSession(null)
+      setErrorMsg(err?.message || 'Could not connect to backend chess server at /api/session/start')
     } finally {
       setIsLoading(false)
     }
@@ -133,6 +159,48 @@ export default function PlayPage() {
     const pFrom = moveUci.substring(0, 2)
     const pTo = moveUci.substring(2, 4)
     setLastMove({ from: pFrom, to: pTo })
+
+    // Demo session isolation: Never send demo session to backend
+    if (session.session_id === 'demo-isolated-session' || session.session_id.startsWith('demo-')) {
+      try {
+        const clientChess = new Chess(session.fen)
+        const promo = moveUci.length > 4 ? moveUci[4] : undefined
+        const moveRes = clientChess.move({ from: pFrom, to: pTo, promotion: promo })
+        if (!moveRes) {
+          throw new Error('Illegal move in demo session')
+        }
+
+        let demoEngineMove: string | null = null
+        if (!clientChess.isGameOver()) {
+          const legalMoves = clientChess.moves({ verbose: true })
+          if (legalMoves.length > 0) {
+            const picked = legalMoves[Math.floor(Math.random() * legalMoves.length)]
+            const emRes = clientChess.move(picked)
+            if (emRes) {
+              demoEngineMove = `${emRes.from}${emRes.to}${emRes.promotion || ''}`
+              setLastMove({ from: emRes.from, to: emRes.to })
+            }
+          }
+        }
+
+        const updatedMoves = [...session.moves_uci, moveUci]
+        if (demoEngineMove) updatedMoves.push(demoEngineMove)
+
+        setSession({
+          ...session,
+          fen: clientChess.fen(),
+          moves_uci: updatedMoves,
+          ply_count: updatedMoves.length,
+          game_over: clientChess.isGameOver(),
+          result: clientChess.isCheckmate() ? 'Checkmate' : clientChess.isDraw() ? 'Draw' : null,
+        })
+      } catch (e: any) {
+        setErrorMsg(e.message || 'Invalid move')
+      } finally {
+        setIsThinking(false)
+      }
+      return
+    }
 
     try {
       const res = await fetch(`/api/session/${session.session_id}/move`, {
@@ -288,21 +356,38 @@ export default function PlayPage() {
             </p>
           </div>
         ) : errorMsg && !session ? (
-          <div className="max-w-md mx-auto parchment-card p-6 text-center">
+          <div className="max-w-md mx-auto parchment-card p-6 text-center rounded-2xl border border-[#dec8af] bg-[#fffdfa] shadow-lg">
             <AlertCircle size={36} className="text-[#9b3822] mx-auto mb-3" />
             <h2 className="font-serif-custom text-xl font-bold text-[#2d170e] mb-2">
-              Connection Issue
+              Backend Server Unavailable
             </h2>
-            <p className="font-serif-custom text-sm text-[#634533] mb-5">{errorMsg}</p>
-            <button
-              onClick={() => initializeSession()}
-              className="bg-[#381f14] text-[#fbf1dc] px-6 py-2.5 rounded-[6px] font-serif-custom font-bold"
-            >
-              Retry Connection
-            </button>
+            <p className="font-serif-custom text-xs text-[#735843] mb-5 leading-relaxed">{errorMsg}</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => initializeSession()}
+                className="w-full sm:w-auto bg-[#381f14] hover:bg-[#23120b] text-[#fbf1dc] px-5 py-2.5 rounded-xl font-serif-custom text-xs font-bold transition-all"
+              >
+                Retry Connection
+              </button>
+              <Link
+                href="/play?demo=1"
+                className="w-full sm:w-auto border border-[#dec8af] bg-[#faf5ec] hover:bg-[#f2e7d5] text-[#5e402e] px-4 py-2.5 rounded-xl font-serif-custom text-xs font-semibold transition-all"
+              >
+                Open Demo Session (?demo=1)
+              </Link>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="space-y-4">
+            {/* Demo Mode Banner if session is demo */}
+            {session?.session_id === 'demo-isolated-session' && (
+              <div className="max-w-[1240px] mx-auto">
+                <DemoBanner exitHref="/play" />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left: Interactive Chess Board */}
             <div className="lg:col-span-7 flex flex-col items-center">
               {/* Opponent Badge Header */}
@@ -483,6 +568,7 @@ export default function PlayPage() {
                 )}
               </div>
             </div>
+          </div>
           </div>
         )}
       </div>

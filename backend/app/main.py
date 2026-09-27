@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import session, dream
+from app.routers import session, dream, brain
 
 app = FastAPI(
     title="Dr. Wolf Brain API",
@@ -21,6 +21,7 @@ app.add_middleware(
 
 app.include_router(session.router)
 app.include_router(dream.router)
+app.include_router(brain.router)
 
 @app.get("/api/health")
 def health_check():

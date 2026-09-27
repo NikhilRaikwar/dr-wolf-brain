@@ -38,11 +38,43 @@ import {
   fenToBoardGrid,
 } from '@/lib/landingExamples'
 
+import { useRouter } from 'next/navigation'
+
 export default function HomePage() {
+  const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [usernameInput, setUsernameInput] = useState('Alex')
+  const [ratingInput, setRatingInput] = useState('1600')
+  const [isConnecting, setIsConnecting] = useState(false)
   const [activeTab, setActiveTab] = useState<'review' | 'evidence' | 'engineLines'>('review')
   const [activeStage, setActiveStage] = useState<number>(0)
   const [isPipelinePaused, setIsPipelinePaused] = useState<boolean>(false)
+
+  const handleConnectSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    setIsConnecting(true)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dr_wolf_username', usernameInput || 'Alex')
+      localStorage.setItem('dr_wolf_rating', ratingInput || '1600')
+    }
+    setTimeout(() => {
+      setIsConnecting(false)
+      setAuthModalOpen(false)
+      router.push('/overview')
+    }, 400)
+  }
+
+  const handleQuickLaunch = (name: string, rating: string) => {
+    setUsernameInput(name)
+    setRatingInput(rating)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dr_wolf_username', name)
+      localStorage.setItem('dr_wolf_rating', rating)
+    }
+    setAuthModalOpen(false)
+    router.push('/overview')
+  }
 
   useEffect(() => {
     if (isPipelinePaused) return
@@ -113,18 +145,18 @@ export default function HomePage() {
           </a>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-9 font-serif-custom text-[17px] font-medium text-[#4f3222]">
+          <nav className="hidden md:flex items-center gap-7 lg:gap-9 font-serif-custom text-[16px] font-medium text-[#4f3222]">
             <a href="#home" className="hover:text-[#b3782b] transition-colors">
               Home
             </a>
-            <a href="#learn" className="hover:text-[#b3782b] transition-colors">
-              Learn
-            </a>
-            <a href="#think-first" className="hover:text-[#b3782b] transition-colors">
-              Train
-            </a>
             <a href="#how-it-works" className="hover:text-[#b3782b] transition-colors">
               How It Works
+            </a>
+            <a href="#think-first" className="hover:text-[#b3782b] transition-colors">
+              Interactive Training
+            </a>
+            <a href="#learn" className="hover:text-[#b3782b] transition-colors">
+              Architecture
             </a>
             <a href="#open" className="hover:text-[#b3782b] transition-colors">
               Built in the Open
@@ -132,13 +164,15 @@ export default function HomePage() {
           </nav>
 
           {/* Right Action Button */}
-          <div className="hidden md:flex items-center">
-            <a
-              href="#think-first"
-              className="bg-[#361f14] hover:bg-[#23120b] text-[#fbf1dc] px-6 py-2.5 rounded-[6px] font-serif-custom text-[16px] font-semibold shadow-[0_3px_0_#1f1008] transition-all hover:translate-y-[-1px] active:translate-y-[1px]"
+          <div className="hidden md:flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-[#361f14] hover:bg-[#23120b] text-[#fbf1dc] px-5 py-2.5 rounded-[6px] font-serif-custom text-[15px] font-semibold shadow-[0_3px_0_#1f1008] transition-all hover:translate-y-[-1px] active:translate-y-[1px]"
             >
-              Explore the Concept
-            </a>
+              <span>Connect & Play</span>
+              <ArrowRight size={15} />
+            </button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -162,25 +196,25 @@ export default function HomePage() {
               Home
             </a>
             <a
-              href="#learn"
+              href="#how-it-works"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
-              Learn
+              How It Works
             </a>
             <a
               href="#think-first"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
-              Train
+              Interactive Training
             </a>
             <a
-              href="#how-it-works"
+              href="#learn"
               onClick={() => setMobileMenuOpen(false)}
               className="hover:text-[#b3782b]"
             >
-              How It Works
+              Architecture
             </a>
             <a
               href="#open"
@@ -189,16 +223,131 @@ export default function HomePage() {
             >
               Built in the Open
             </a>
-            <a
-              href="#think-first"
-              onClick={() => setMobileMenuOpen(false)}
-              className="inline-block text-center bg-[#361f14] text-[#fbf1dc] px-5 py-2.5 rounded-[6px] font-semibold mt-2"
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                setAuthModalOpen(true)
+              }}
+              className="inline-flex items-center justify-center gap-2 text-center bg-[#361f14] text-[#fbf1dc] px-5 py-2.5 rounded-[6px] font-semibold mt-2"
             >
-              Explore the Concept
-            </a>
+              <span>Connect & Play</span>
+              <ArrowRight size={15} />
+            </button>
           </div>
         )}
       </header>
+
+      {/* Connect & Sign In Modal */}
+      {authModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div
+            className="relative w-full max-w-md rounded-2xl border border-[#dec8af] bg-[#fffdfa] p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-[#8c745f] hover:bg-[#faf2e4] hover:text-[#2d170e] transition-colors"
+              aria-label="Close modal"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Modal Header */}
+            <div className="text-center space-y-1.5 pt-1">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#f4e8d3] text-2xl shadow-xs">
+                ♞
+              </div>
+              <h2 className="font-serif-custom text-2xl font-bold text-[#2d170e]">
+                Connect to Dr. Wolf Brain
+              </h2>
+              <p className="font-serif-custom text-xs text-[#735843]">
+                Enter any username or choose a quick demo profile to launch your dashboard.
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConnectSubmit} className="space-y-4 font-serif-custom text-xs">
+              <div>
+                <label className="block text-[#4f3222] font-semibold mb-1.5 text-xs">
+                  Chess.com Username / Player Name
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    placeholder="e.g. Alex, GothamChess, or your name"
+                    className="w-full rounded-xl border border-[#dec8af] bg-[#faf5ec] px-3.5 py-2.5 text-sm font-medium text-[#2d170e] placeholder-[#9b8370] focus:border-[#b3782b] focus:bg-white focus:outline-none shadow-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Rating level presets */}
+              <div>
+                <label className="block text-[#4f3222] font-semibold mb-1.5 text-xs">
+                  Estimated Rating Level
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['1000', '1400', '1600', '2000'].map((rt) => (
+                    <button
+                      key={rt}
+                      type="button"
+                      onClick={() => setRatingInput(rt)}
+                      className={`py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        ratingInput === rt
+                          ? 'border-[#b3782b] bg-[#faf2e4] text-[#845722] ring-1 ring-[#b3782b]/30'
+                          : 'border-[#e5d8c5] bg-[#fffdfa] text-[#6d503b] hover:bg-[#faf5ec]'
+                      }`}
+                    >
+                      {rt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isConnecting}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#361f14] py-3 text-sm font-bold text-[#fbf1dc] hover:bg-[#23120b] shadow-sm transition-all disabled:opacity-50"
+              >
+                <span>{isConnecting ? 'Connecting Learner Model...' : 'Launch Dashboard'}</span>
+                <ArrowRight size={16} />
+              </button>
+            </form>
+
+            {/* Quick Demo Launch Profiles */}
+            <div className="pt-2 border-t border-[#f0e6d8] space-y-2">
+              <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#8c745f] text-center">
+                Or 1-Click Instant Access
+              </span>
+              <div className="grid grid-cols-2 gap-2.5 font-serif-custom text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLaunch('Alex', '1600')}
+                  className="flex flex-col items-start p-2.5 rounded-xl border border-[#dec8af] bg-[#faf6ee] hover:bg-[#f4ebe0] transition-colors text-left"
+                >
+                  <span className="font-bold text-[#2d170e]">👑 Alex (1600)</span>
+                  <span className="text-[10px] text-[#8c745f] mt-0.5">12 episodes analyzed</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLaunch('Guest', '1200')}
+                  className="flex flex-col items-start p-2.5 rounded-xl border border-[#dec8af] bg-[#faf6ee] hover:bg-[#f4ebe0] transition-colors text-left"
+                >
+                  <span className="font-bold text-[#2d170e]">⚡ Guest (1200)</span>
+                  <span className="text-[10px] text-[#8c745f] mt-0.5">Fresh baseline model</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Hero Section */}
       <section id="home" className="relative pt-10 sm:pt-14 pb-16 sm:pb-20 overflow-hidden">
