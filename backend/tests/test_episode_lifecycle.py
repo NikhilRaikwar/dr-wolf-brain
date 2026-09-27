@@ -350,3 +350,97 @@ def test_golden_think_first_e2e_session_loop(client, db_session):
     db_session.refresh(episode)
     assert episode.status == "committed"
     assert episode.learner_action == {"move_played": legal_move}
+
+    # Step 9: Get summary -> triggers grading of committed episodes
+    summary_res = client.get(f"/api/session/{session_id}/summary")
+    assert summary_res.status_code == 200
+    summary_data = summary_res.json()
+    assert summary_data["stats"]["positions_faced"] >= 1
+    assert len(summary_data["review_cards"]) >= 1
+
+    db_session.refresh(episode)
+    assert episode.status == "graded"
+    assert episode.reasoning_outcome in ("recognized", "partial", "missed")
+    assert episode.move_outcome in ("best", "acceptable", "inaccurate", "mistake")
+    assert episode.engine_truth is not None
+    assert "best_move" in episode.engine_truth
+    assert episode.move_quality_cp_loss is not None
+
+
+def test_summary_endpoint_idempotency(client, db_session):
+    """Calling summary twice on graded episodes is idempotent."""
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+    session = db_session.query(Session).filter(Session.id == session_id).first()
+
+    episode = Episode(
+        session_id=session.id,
+        player_id=session.player_id,
+        move_number=8,
+        fen=session.current_fen,
+        status="committed",
+        trigger_evidence={
+            "type": "opponent_threat",
+            "target_concept": "opponent_threat_detection",
+            "question_id": "opponent_threat_counterplay",
+            "engine_facts": {"threat": "mate", "key_squares": ["g2"]},
+        },
+        learner_reasoning={"choice": "look_for_counterplay", "squares_highlighted": ["g2"]},
+        learner_action={"move_played": "e2e4"},
+    )
+    db_session.add(episode)
+    db_session.commit()
+
+    # Call 1
+    res1 = client.get(f"/api/session/{session_id}/summary")
+    assert res1.status_code == 200
+    db_session.refresh(episode)
+    assert episode.status == "graded"
+    outcome1 = episode.reasoning_outcome
+    move_outcome1 = episode.move_outcome
+
+    # Call 2
+    res2 = client.get(f"/api/session/{session_id}/summary")
+    assert res2.status_code == 200
+    db_session.refresh(episode)
+    assert episode.status == "graded"
+    assert episode.reasoning_outcome == outcome1
+    assert episode.move_outcome == move_outcome1
+
+
+def test_summary_endpoint_engine_failure_fails_closed(client, db_session):
+    """If Stockfish fails during summary grading, returns 503 and episode remains committed."""
+    from unittest.mock import patch
+    from app.chess.stockfish import EngineUnavailableError
+
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+    session = db_session.query(Session).filter(Session.id == session_id).first()
+
+    episode = Episode(
+        session_id=session.id,
+        player_id=session.player_id,
+        move_number=8,
+        fen=session.current_fen,
+        status="committed",
+        trigger_evidence={
+            "type": "opponent_threat",
+            "target_concept": "opponent_threat_detection",
+            "question_id": "opponent_threat_counterplay",
+            "engine_facts": {},
+        },
+        learner_reasoning={"choice": "look_for_counterplay"},
+        learner_action={"move_played": "e2e4"},
+    )
+    db_session.add(episode)
+    db_session.commit()
+
+    with patch("app.routers.session.grade_committed_episode", side_effect=EngineUnavailableError("Engine died")):
+        res = client.get(f"/api/session/{session_id}/summary")
+        assert res.status_code == 503
+
+    db_session.refresh(episode)
+    assert episode.status == "committed"
+    assert episode.engine_truth is None
+    assert episode.reasoning_outcome is None
+

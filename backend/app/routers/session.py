@@ -16,11 +16,14 @@ from app.schemas import (
     ReasoningAnswer,
     AnswerResponse,
     EpisodeResponse,
+    SessionSummaryResponse,
 )
 from app.chess.stockfish import StockfishAdapter, EngineUnavailableError, eval_for_color
 from app.chess.triggers import TriggerContext
 from app.chess.governor import GovernorState, select_interruption
 from app.chess.questions import get_question_for_trigger, QUESTION_BANK
+from app.grading.grader import grade_committed_episode
+from app.llm.client import LLMClient
 from app.config import settings
 
 router = APIRouter(prefix="/api/session", tags=["session"])
@@ -29,6 +32,7 @@ engine_adapter = StockfishAdapter(
     depth_live=settings.ENGINE_DEPTH_LIVE,
     min_stockfish_elo=settings.STOCKFISH_MIN_ELO,
 )
+llm_client = LLMClient()
 
 
 @router.post("/start", response_model=SessionStartResponse)
@@ -396,4 +400,106 @@ def make_move(
         game_over=final_game_over,
         result=result,
         interruption=interruption_response,
+    )
+
+
+@router.get("/{session_id}/summary", response_model=SessionSummaryResponse)
+def get_session_summary(
+    session_id: uuid.UUID,
+    db: DBSession = Depends(get_db),
+):
+    """Grade all committed episodes in the session and return session summary data."""
+    session = db.query(Session).filter(Session.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+
+    episodes = (
+        db.query(Episode)
+        .filter(Episode.session_id == session_id)
+        .order_by(Episode.move_number.asc())
+        .all()
+    )
+
+    # Grade any committed episodes
+    has_graded = False
+    for ep in episodes:
+        if ep.status == "committed":
+            try:
+                r_outcome, m_outcome, cp_loss, engine_truth, grader_detail = grade_committed_episode(
+                    episode=ep,
+                    player_color_str=session.player_color,
+                    engine=engine_adapter,
+                    llm=llm_client,
+                )
+                ep.engine_truth = engine_truth
+                ep.reasoning_outcome = r_outcome
+                ep.move_outcome = m_outcome
+                ep.move_quality_cp_loss = cp_loss
+                ep.status = "graded"
+                has_graded = True
+            except EngineUnavailableError as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Training engine is temporarily unavailable.",
+                ) from e
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to grade episode: {e}",
+                ) from e
+
+    if has_graded:
+        db.commit()
+        for ep in episodes:
+            db.refresh(ep)
+
+    # Compute summary stats across all graded episodes
+    graded_episodes = [ep for ep in episodes if ep.status == "graded"]
+    positions_faced = len(graded_episodes)
+    recognized_count = sum(1 for ep in graded_episodes if ep.reasoning_outcome == "recognized")
+    partial_count = sum(1 for ep in graded_episodes if ep.reasoning_outcome == "partial")
+    missed_count = sum(1 for ep in graded_episodes if ep.reasoning_outcome == "missed")
+
+    review_cards = []
+    for ep in graded_episodes:
+        lr = ep.learner_reasoning or {}
+        la = ep.learner_action or {}
+        et = ep.engine_truth or {}
+        review_cards.append({
+            "episode_id": str(ep.id),
+            "move_number": ep.move_number,
+            "your_thinking": lr.get("choice", ""),
+            "your_move": la.get("move_played", ""),
+            "reasoning_outcome": ep.reasoning_outcome,
+            "move_outcome": ep.move_outcome,
+            "key_idea": et.get("concept", ""),
+            "best_move": et.get("best_move_san") or et.get("best_move", ""),
+            "cp_loss": ep.move_quality_cp_loss,
+            "engine_lines": et.get("pv", []),
+        })
+
+    takeaway = "Great work thinking before each critical move."
+    if positions_faced > 0:
+        if recognized_count == positions_faced:
+            takeaway = "Exceptional tactical recognition throughout the session."
+        elif missed_count > 0:
+            takeaway = f"You recognized {recognized_count} of {positions_faced} tactical patterns. Review the key ideas below."
+
+    return SessionSummaryResponse(
+        session_id=session.id,
+        stats={
+            "positions_faced": positions_faced,
+            "recognized": recognized_count,
+            "partial": partial_count,
+            "missed": missed_count,
+            "duration_s": 0,
+        },
+        skill_updates=[],
+        takeaway=takeaway,
+        review_cards=review_cards,
     )

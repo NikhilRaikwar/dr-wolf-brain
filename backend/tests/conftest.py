@@ -12,8 +12,9 @@ from sqlalchemy.orm import sessionmaker
 
 from sqlalchemy.pool import StaticPool
 
-# Use in-memory SQLite with StaticPool for fast, isolated test suite
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Use in-memory SQLite with StaticPool for fast, isolated unit test suite by default
+if not os.environ.get("DATABASE_URL"):
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from app.db import Base, get_db
 from app import models

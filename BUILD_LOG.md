@@ -75,5 +75,38 @@
   - **Rejected / Adjusted Suggestions:**
     - *Rejected:* Client-side guessing of question IDs or option validity. Enforced server-authoritative question retrieval and option validation.
     - *Rejected:* Premature reasoning grading or mastery updating. Cleanly scoped this milestone to terminate at `committed` status.
-
-
+## Milestone 5: Reasoning Grader & Engine Truth
+- **Date:** 2026-09-27
+- **Focus:** Built canonical engine truth capture, deterministic reasoning grader, move outcome evaluation, constrained LLM free-text interpreter, and the summary grading lifecycle (`committed → graded`).
+- **Decisions & Implementation:**
+  - **Core Product Rule: Right Move != Right Reasoning:**
+    - A player can find the best move through lucky instinct or tactical calculation while misidentifying the underlying theme (e.g. Case B: best move + missed reasoning).
+    - A player can correctly diagnose an opponent's tactical threat but blunder the execution move (e.g. Case A: mistake move + recognized reasoning).
+    - Reasoning outcome (`recognized` | `partial` | `missed`) and move outcome (`best` | `acceptable` | `inaccurate` | `mistake`) are graded independently and never collapsed into a composite score.
+  - **Stockfish Owns Move Truth (`compute_engine_truth` & `compute_move_outcome`):**
+    - Computed strictly from the episode's canonical pre-move FEN using `StockfishAdapter`.
+    - Engine evaluations remain invariant White-relative integers (`best_eval_white_cp`, `played_eval_white_cp`).
+    - Centipawn loss (`cp_loss`) is calculated with learner-perspective normalization via `calculate_cp_loss(...)`:
+      - $\le 15\text{ cp}$: `best`
+      - $\le 60\text{ cp}$: `acceptable`
+      - $\le 150\text{ cp}$: `inaccurate`
+      - $> 150\text{ cp}$: `mistake`
+    - Preserved forced mates yield $0\text{ cp}$ loss (`best`); blundering a forced mate yields severe deterioration $> 150\text{ cp}$ (`mistake`).
+  - **Deterministic Code Owns Final Reasoning Grade (`grade_reasoning`):**
+    - Question metadata is resolved server-side from `episode.trigger_type`, `question_id`, and canonical `QUESTION_BANK`.
+    - `concept_match`: boolean indicating if the selected option corresponds to the engine fact's target concept.
+    - `square_match`: non-empty intersection of highlighted squares (`squares_highlighted`) and engine fact key squares (`key_squares`).
+    - `piece_match`: explicit square matching corresponding to key pieces (no brittle prose parsing).
+    - **Anti-Click-Farming Rule:** Selecting the correct multiple-choice option alone yields `partial` at most; `recognized` requires concrete visual or textual evidence (`square_match OR piece_match OR identified_concrete_threat OR identified_relevant_piece`).
+    - **Contradiction Override:** If the learner's free text contradicts engine truth (`contradicts_engine_truth = True`), the outcome is strictly forced to `missed` regardless of matching squares.
+  - **Constrained LLM Free-Text Interpreter (`LLMClient`):**
+    - Transport: OpenRouter API.
+    - Strict Pydantic output schema: `FreeTextGrade` (`supports_engine_concept`, `contradicts_engine_truth`, `identified_concrete_threat`, `identified_relevant_piece`, `evidence_phrase`).
+    - System prompt strictly constrains the LLM to interpreting learner prose against provided chess facts without inventing facts or issuing final verdicts (`recognized`/`partial`/`missed`).
+    - **LLM Failure Policy:** 2 schema-valid retries before falling back to a conservative zero-credit default (`FreeTextGrade` with all booleans `False`). Grading never fails or halts when the LLM is down.
+  - **No `line_match` in v1:**
+    - v1 has no variation-entry UI. The grader schema contains no `line_match` field or hidden line parser.
+  - **Fail-Closed Engine Failure Policy:**
+    - If Stockfish fails during grading, the transaction fails closed, the episode status remains `committed`, and the endpoint returns HTTP 503 without persisting unverified chess data.
+  - **Mid-Game UI Integrity:**
+    - No mid-game grading verdict, engine lines, centipawn loss, or best move suggestions are revealed during live play.
