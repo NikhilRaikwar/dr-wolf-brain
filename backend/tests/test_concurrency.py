@@ -118,7 +118,7 @@ def test_postgres_concurrent_duplicate_evidence_write():
     PgSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=pg_engine)
 
     init_db = PgSessionLocal()
-    player = Player(username="concurrency_test_player")
+    player = Player(chesscom_username="concurrency_test_player")
     init_db.add(player)
     init_db.commit()
     player_id = player.id
