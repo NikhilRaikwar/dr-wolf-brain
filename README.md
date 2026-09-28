@@ -173,7 +173,6 @@ For a comprehensive review of the design choices and specifications behind Dr. W
 - **Product Requirements & Scope**: [`PRD.md`](./PRD.md)
 - **Engineering Contract & Architecture**: [`BUILD_SPEC.md`](./BUILD_SPEC.md)
 - **Architectural Tradeoffs & Decision Log**: [`docs/DECISIONS.md`](./docs/DECISIONS.md)
-- **Dashboard Evidence Authority Contract**: [`DASHBOARD_DATA_AUTHORITY.md`](./DASHBOARD_DATA_AUTHORITY.md)
 - **Chronological Engineering Log**: [`BUILD_LOG.md`](./BUILD_LOG.md)
 
 ---
