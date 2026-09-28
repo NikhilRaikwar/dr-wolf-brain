@@ -2,6 +2,17 @@ from pydantic import BaseModel, Field
 from typing import Literal, Optional, List, Dict, Any
 from uuid import UUID
 
+# --- player ---
+class PlayerCreateRequest(BaseModel):
+    chesscom_username: Optional[str] = None
+    estimated_rating: Optional[int] = None
+
+class PlayerResponse(BaseModel):
+    id: UUID
+    chesscom_username: Optional[str] = None
+    estimated_rating: int
+    created_at: Optional[str] = None
+
 # --- import ---
 class ChesscomImportRequest(BaseModel):
     username: str

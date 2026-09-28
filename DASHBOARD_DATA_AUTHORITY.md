@@ -11,99 +11,120 @@ The following are the exact registered FastAPI endpoints and HTTP methods from `
 | Method | Exact Path | Router / Tag | Purpose & Contract |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/health` | Root | Health check endpoint (`{"status": "ok", "app": "Dr. Wolf Brain"}`). |
+| `POST` | `/api/player` | `player` | Explicitly creates a new Player row with a fresh UUID (chesscom_username is optional metadata, not a lookup key). |
+| `GET` | `/api/player/{player_id}` | `player` | Fetches canonical player record by ID. |
 | `POST` | `/api/session/start` | `session` | Creates canonical server session with limited Stockfish rating. |
 | `GET` | `/api/session/{session_id}/position` | `session` | Reads canonical DB-backed session state (`fen`, `turn`, `interruption`). |
 | `POST` | `/api/session/{session_id}/interrupt/{episode_id}/answer` | `session` | Stores learner reasoning; advances episode `prompted` → `answered`. |
 | `POST` | `/api/session/{session_id}/move` | `session` | Validates player move, runs engine reply, triggers Socratic interruption. |
-| `GET` | `/api/session/{session_id}/summary` | `session` | Grades episodes with Stockfish, executes Dream Cycle, returns summary. |
-| `POST` | `/api/dream-cycle` | `dream-cycle` | Runs idempotent Dream Cycle belief consolidation (`{"session_id": "..."}`). |
-| `GET` | `/api/brain` | `brain` | Aggregates learner profile, skill masteries, hypotheses, focus, citations. |
+| `POST` | `/api/session/{session_id}/finish` | `session` | POST /finish is the explicit manual session-closing endpoint (idempotent), transitions status to `completed`, rejects future moves. |
+| `GET` | `/api/session/{session_id}/summary` | `session` | Episode grading only on completed session with Stockfish, returns review cards (returns 409 if session still active; never closes sessions). |
+| `POST` | `/api/dream-cycle` | `dream-cycle` | Runs idempotent Dream Cycle belief consolidation (evidence consolidation, skill/hypothesis updates, belief_changes, next_focus, persisted DreamCycleRun). |
+| `GET` | `/api/brain` | `brain` | Aggregates learner profile, skill masteries, hypotheses, focus, citations. Strictly read-only; does not create orphan player rows. |
 
 ---
 
-## Authority Tiers
+## Canonical Session Closure & Dream Cycle Ownership
 
-1. **Tier 1 — Canonical Backend Data (Real Mode)**: Grounded strictly in PostgreSQL tables, deterministic Grader outputs, Stockfish engine truth, or SQLite DB records via FastAPI endpoints (`/api/brain`, `/api/session/*`, `/api/dream-cycle`).
-2. **Tier 2 — Explicit Demo Data (Demo Mode Only)**: Grounded in deterministic fixtures (`lib/demo/brainDemoData.ts`), rendered strictly when `?demo=1` is provided. Must display a prominent `DEMO DATA ACTIVE` banner.
-3. **Tier 3 — Not Implemented / Honest Empty State**: UI features where backend data models or scheduled jobs do not exist yet. Rendered as honest empty states or labeled "Coming Soon", never as fabricated mock metrics.
+### Canonical Session Closure Paths:
+1. **Natural Terminal Chess State:** Move processing (`POST /api/session/{id}/move`) detects checkmate / stalemate / draw, marks `session.status = "completed"`, and sets `ended_at`.
+2. **Explicit Manual Action:** `POST /api/session/{id}/finish` is the explicit manual session-closing endpoint, marking `session.status = "completed"` and setting `ended_at`.
+- **Invariant:** `GET /api/session/{id}/summary` **NEVER** closes an active session (returns `HTTP 409 Conflict` if session is active).
+
+### Exact Ownership Separation:
+- **`GET /api/session/{id}/summary`:** Owns **episode grading only** (grades `committed` episodes against Stockfish engine truth; leaves already `graded` episodes unchanged; returns review cards).
+- **`POST /api/dream-cycle`:** Owns **evidence consolidation and learner model updates** (evidence records, deterministic skill and hypothesis updates, belief changelog, next focus CAS, and persisted `DreamCycleRun`).
 
 ---
 
-## Route-by-Route Data Matrix
+## Milestone & Product Status
+
+- **REAL LIVE-PLAY PATH:** `IMPLEMENTED` (Full server-authoritative live session loop, deterministic triggers, Socratic interruption modal, Stockfish grading, idempotent manual session finish, and Dream Cycle).
+- **REAL IMPORT PATH:** `NOT IMPLEMENTED YET` (Endpoints `POST /api/import/chesscom` and `POST /api/import/pgn` are not implemented in this pass. `/games` honestly reflects coming-next status).
+- **MILESTONE BLOCKERS:** `NONE` for this canonical-contract pass.
+- **FULL PRD REMAINING WORK:** Implementing the PGN and Chess.com import endpoints (`POST /api/import/chesscom`, `POST /api/import/pgn`) and real `/games` import execution wiring.
+
+---
+
+## Prototype Auth Boundary & Identity Note
+
+- **Local Learner Identity:** The player UUID stored in client `localStorage` (`dr_wolf_player_id`) is a prototype local learner identity for v1 single-user/local workflows, **not** production authentication.
+- **Metadata Only:** `chesscom_username` is non-authoritative metadata, not a secure login credential or unique account key.
+- **No Secure Login Claimed:** The system does not claim multi-user auth, password hashing, or account ownership security in this pass.
+
+---
+
+## Authority Principles
+
+1. **Strict Server Authority (100% Real Mode)**: Grounded strictly in PostgreSQL tables, deterministic Grader outputs, Stockfish engine truth, or SQLite DB records via FastAPI endpoints (`/api/brain`, `/api/session/*`, `/api/dream-cycle`, `/api/player`).
+2. **Zero Fabricated Learner Data**: No fake usernames (Alex/Guest), no mock ratings (1600/1200), no synthetic sparklines, no hardcoded FENs used as user history.
+3. **Honest Empty States**: Brand new users with 0 sessions see honest empty states ("Not enough evidence yet", "Needs evidence", "No sessions recorded"), with clear CTAs to play Think First sessions.
+4. **Epistemic Invariance**: Right move != Right reasoning. Grader evaluates reasoning and move legality independently against Stockfish truth.
+
+---
+
+## Route-by-Route Data Authority
 
 ### 1. Overview & Your Chess Brain (`/overview`, `/brain`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Sessions Played** | `sessions` table via `GET /api/brain` | Computed real count (`COUNT(Session)`) | `3` | `0` |
-| **Episodes Analyzed** | `episodes` table via `GET /api/brain` | Computed real count (`Episode.status == 'graded'`) | `12` | `0` |
-| **Last Updated** | Max timestamp (`Player`, `DreamCycleRun`, `Skill`, `BeliefChange`) | ISO timestamp formatted to relative date | `Today` | Neutral date or `--` |
-| **Player Username** | `Player.chesscom_username` | Real username from DB | `Alex (Demo)` | `Learner` |
-| **Player Rating** | `Player.estimated_rating` | Real rating number | `1600 Rapid` | `Unrated` |
-| **Skill Mastery (5 skills)** | `skills` table (`Skill.mastery_score`) | Real score `[0..100]` (green ≥ 65, gold < 65) | 74, 61, 68, 57, `null` | `null` renders *"Not enough evidence yet"* (never 0) |
-| **Thinking Patterns (3)** | `hypotheses` table (`Hypothesis.state`) | Deterministic state (`needs_evidence`, `developing`, `well_supported`) | 3 approved patterns | `Needs evidence` with 0 observations |
-| **Current Focus** | Latest `DreamCycleRun.result_json.next_focus` | Real skill concept chosen by Dream Cycle CAS | `opponent_threat_detection` | Lowest mastery skill with evidence or None |
-| **Why Asked Citations** | `episodes.trigger_evidence` | Real episode IDs and move numbers | Episodes `#14`, `#21`, `#28`, `#31` | Honest empty state |
-| **Recent Sessions** | `sessions` + `episodes` query | Real last 3 sessions with outcome counts | 3 demo sessions | *"No Sessions Recorded"* empty card |
-| **Recent Belief Updates** | `belief_changes` table | Real log of DB mutations | 2 demo updates | *"No Updates Recorded"* empty card |
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Empty / Initial State |
+| :--- | :--- | :--- | :--- |
+| **Sessions Played** | `sessions` table via `GET /api/brain` | Computed real count (`COUNT(Session)`) | `0` |
+| **Episodes Analyzed** | `episodes` table via `GET /api/brain` | Computed real count (`Episode.status == 'graded'`) | `0` |
+| **Player Username** | `Player.chesscom_username` | Real username from DB | `Learner` |
+| **Player Rating** | `Player.estimated_rating` | Real rating number | `Unrated` / Initial Rating |
+| **Skill Mastery (5 skills)** | `skills` table (`Skill.mastery_score`) | Real score `[0..100]` | `null` renders *"Not enough evidence yet"* |
+| **Thinking Patterns (3)** | `hypotheses` table (`Hypothesis.state`) | Deterministic state (`needs_evidence`, `developing`, `well_supported`) | `Needs evidence` with 0 observations |
+| **Current Focus** | Latest `DreamCycleRun.result_json.next_focus` | Real skill concept chosen by Dream Cycle CAS | Lowest mastery skill with evidence or None |
+| **Why Asked Citations** | `episodes.trigger_evidence` | Real episode IDs and move numbers | Honest empty state with CTA |
+| **Recent Sessions** | `sessions` + `episodes` query | Real last 3 sessions with outcome counts | *"No Sessions Recorded"* empty card |
+| **Recent Belief Updates** | `belief_changes` table | Real log of DB mutations | *"No Updates Recorded"* empty card |
 
 ---
 
 ### 2. Think First Training (`/train`, `/play`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Session Initialization** | `POST /api/session/start` | Creates server-authoritative session with Stockfish Elo | Local isolated demo board | **Error Screen**: Backend unavailable with Retry and Demo option |
-| **Chess Moves & Engine Reply**| `POST /api/session/{id}/move` | Validated by `python-chess` & Stockfish engine | Isolated client move validation | Move rejection toast with error message |
-| **Socratic Question** | `POST /api/session/{id}/interrupt/{ep_id}/answer` | Server evaluates trigger criteria | Local puzzle dataset (5 episodes) | Pauses game until answered |
-| **Answer Submission Feedback**| Epistemic rule | Moves episode `prompted` → `answered`. **No grading revealed** until move is committed | Moves to move commitment | Never reveals correctness before move |
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Failure State |
+| :--- | :--- | :--- | :--- |
+| **Session Initialization** | `POST /api/session/start` | Creates server-authoritative session with Stockfish Elo | **Error Screen**: Backend unavailable with Retry |
+| **Chess Moves & Engine Reply**| `POST /api/session/{id}/move` | Validated by `python-chess` & Stockfish engine | Move rejection toast with error message |
+| **Socratic Question** | `POST /api/session/{id}/interrupt/{ep_id}/answer` | Server evaluates trigger criteria | Pauses game until answered |
+| **Answer Submission Feedback**| Epistemic rule | Moves episode `prompted` → `answered`. **No grading revealed** until move is committed | Never reveals correctness before move |
+| **Session Summary** | `GET /api/session/{id}/summary` | Grades committed episodes against Stockfish engine truth | Post-game modal with grading breakdown |
+| **Dream Cycle Consolidation** | `POST /api/dream-cycle` | Consolidates evidence, updates skills & hypotheses | Updates DB learner records |
 
 ---
 
 ### 3. Your Games (`/games`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Imported Games List** | `sessions` table (where imported) | Real game history rows | 8 sample games | *"No Imported Games Yet"* with Connect CTA |
-| **Accuracy Score** | Not yet in DB | Omitted / Coming Soon | Demo-only percentages | Omitted |
-| **Opening Classification** | PGN Header / Stockfish | Real ECO / opening string if present | Demo opening names | Neutral *"Standard Game"* |
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Initial State |
+| :--- | :--- | :--- | :--- |
+| **Imported Games List** | `sessions` table (where imported) | Real game history rows | Honest empty state with Connect / Upload PGN CTAs |
 
 ---
 
 ### 4. Insights (`/insights`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Recurring Themes** | `hypotheses` with `state == 'well_supported'` | Derived from real DB hypotheses | 2 demo themes | *"No Recurring Themes Identified"* |
-| **Top Missed Ideas** | `episodes` with `reasoning_outcome == 'missed'` | Derived from real missed episodes | 2 demo tactical missed ideas | *"No Missed Tactics Recorded"* |
-| **Key Strengths** | `skills` with `mastery_score >= 65` | Derived from real high-mastery skills | 2 demo strengths | *"Developing initial baseline"* |
-| **Needs Attention** | `skills` with `mastery_score < 60` or declining | Derived from lowest mastery skills | 2 demo focus areas | *"Gathering evidence"* |
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Initial State |
+| :--- | :--- | :--- | :--- |
+| **Calibrated Hypotheses** | `hypotheses` table | Derived from real DB hypotheses & evidence counts | *"No Tactical Themes Calibrated Yet"* |
+| **Skill Calibration** | `skills` table | Real mastery scores consolidated via Dream Cycle | *"Not enough evidence yet"* |
 
 ---
 
 ### 5. Progress (`/progress`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Learning Path Stepper** | Current Focus stage | Stage 1..5 mapped from latest Dream Cycle | Stage 2 (Recognize) | Stage 1 (Understand) |
-| **Mastery Sparklines** | Historical `belief_changes` | Plotted from real `belief_changes` timestamps | 14-day demo trends | Flat baseline trend |
-| **Milestones** | Sessions & Episodes count | Earned dynamically (`>= 1 session`, `>= 10 episodes`) | 3 earned badges | Locked badge placeholders |
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Initial State |
+| :--- | :--- | :--- | :--- |
+| **Sessions & Episodes** | `sessions` & `episodes` | Real counts from DB | *"No Recorded Progress History Yet"* |
+| **Belief Transitions** | `belief_changes` table | Real log of validated transitions | *"No belief transitions triggered yet"* |
 
 ---
 
 ### 6. Settings (`/settings`) & Help (`/help`)
 
-| UI Metric / Field | Authoritative Source | Real Mode Behavior | Demo Mode (`?demo=1`) | Empty / Failure State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Profile Info** | `Player` table | Real `chesscom_username` and `estimated_rating` | `Alex`, `1600` | Editable local preferences |
-| **Dream Cycle Scheduler** | Manual trigger (`POST /api/dream-cycle`) | Manual run active; auto-cron marked *"Coming Soon"* | Demo toggle | Explicit *"Manual Trigger via API"* label |
-| **Documentation & Guides** | Static Help Knowledge Base | Full Markdown guides and FAQ accordions | Full Help Center | Static guides always available |
-
----
-
-## Verification Rules
-
-1. **No Silent Fallback**: Live network errors (`fetch` failures or 500s) must render an Error screen with a Retry button, not fake analytics.
-2. **Explicit Opt-In**: Demo data is unlocked strictly by `?demo=1`.
-3. **Banner Visibility**: When `?demo=1` is active, the `DemoBanner` component is rendered at the top of the viewport.
-4. **Epistemic Invariance**: Neither UI nor LLM phrasing can contradict Stockfish chess truth or database belief scores.
+| UI Metric / Field | Authoritative Source | Real Mode Behavior | Persistence |
+| :--- | :--- | :--- | :--- |
+| **Player Profile** | `Player` table & `localStorage` | Real `chesscom_username` and `estimated_rating` | Backend DB + `localStorage` |
+| **Board Appearance** | Client state & `localStorage` | Classic, Green, Walnut, Dark themes | `localStorage` |
+| **Documentation & Guides** | Static Architecture Guide | Explains Stockfish truth, Think First, Dream Cycle | Static guides |

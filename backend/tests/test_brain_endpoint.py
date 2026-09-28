@@ -3,8 +3,19 @@ import uuid
 from app.models import Player, Skill, Hypothesis, BeliefChange, Session, Episode, EvidenceRecord, DreamCycleRun
 
 def test_brain_endpoint_empty_db(client):
-    """Test /api/brain returns valid shape on fresh/empty DB without throwing errors."""
-    res = client.get("/api/brain")
+    """Test /api/brain returns 404 when no player exists, and honest empty shape when fresh player is created."""
+    # 1. No player exists -> must return 404 (no implicit orphan player creation)
+    res_empty = client.get("/api/brain")
+    assert res_empty.status_code == 404
+    assert "No player found" in res_empty.json()["detail"]
+
+    # 2. Explicitly create player
+    create_res = client.post("/api/player", json={})
+    assert create_res.status_code == 201
+    player_id = create_res.json()["id"]
+
+    # 3. Query brain for that player -> returns honest empty learner state
+    res = client.get(f"/api/brain?player_id={player_id}")
     assert res.status_code == 200
     data = res.json()
     assert "player" in data

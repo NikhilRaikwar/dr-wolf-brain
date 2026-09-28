@@ -3,8 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { isDemoMode, getNavHref } from '@/lib/demo/demoUtils'
+import { useRouter } from 'next/navigation'
 import {
   ChevronDown,
   Menu,
@@ -29,8 +28,6 @@ export function DashboardTopNav({
   username = 'Learner',
 }: DashboardTopNavProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const isDemo = isDemoMode(searchParams)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -54,6 +51,9 @@ export function DashboardTopNav({
     setIsDropdownOpen(false)
     if (typeof window !== 'undefined') {
       localStorage.removeItem('dr_wolf_session_id')
+      localStorage.removeItem('dr_wolf_player_id')
+      localStorage.removeItem('dr_wolf_username')
+      localStorage.removeItem('dr_wolf_rating')
     }
     router.push('/')
   }
@@ -72,7 +72,7 @@ export function DashboardTopNav({
             {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          <Link href={getNavHref('/overview', isDemo)} className="group flex items-center gap-2.5">
+          <Link href="/overview" className="group flex items-center gap-2.5">
             <span className="text-2xl sm:text-3xl select-none leading-none drop-shadow-sm transition-transform group-hover:scale-105">
               ♞
             </span>
@@ -130,7 +130,7 @@ export function DashboardTopNav({
                     {username}
                   </span>
                   <span className="text-[11px] text-[#8c745f]">
-                    {isDemo ? '1600 Rapid • Developing' : 'Active Account'}
+                    Active Account
                   </span>
                 </div>
               </div>
@@ -138,7 +138,7 @@ export function DashboardTopNav({
               {/* Navigation Links */}
               <div className="py-1.5 font-serif text-xs">
                 <Link
-                  href={getNavHref('/overview', isDemo)}
+                  href="/overview"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[#4f3222] transition-colors hover:bg-[#faf2e4] hover:text-[#2d170e]"
                 >
@@ -147,7 +147,7 @@ export function DashboardTopNav({
                 </Link>
 
                 <Link
-                  href={getNavHref('/settings', isDemo)}
+                  href="/settings"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[#4f3222] transition-colors hover:bg-[#faf2e4] hover:text-[#2d170e]"
                 >
@@ -156,7 +156,7 @@ export function DashboardTopNav({
                 </Link>
 
                 <Link
-                  href={getNavHref('/insights', isDemo)}
+                  href="/insights"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[#4f3222] transition-colors hover:bg-[#faf2e4] hover:text-[#2d170e]"
                 >
@@ -165,7 +165,7 @@ export function DashboardTopNav({
                 </Link>
 
                 <Link
-                  href={getNavHref('/settings', isDemo)}
+                  href="/settings"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[#4f3222] transition-colors hover:bg-[#faf2e4] hover:text-[#2d170e]"
                 >
@@ -174,7 +174,7 @@ export function DashboardTopNav({
                 </Link>
 
                 <Link
-                  href={getNavHref('/help', isDemo)}
+                  href="/help"
                   onClick={() => setIsDropdownOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[#4f3222] transition-colors hover:bg-[#faf2e4] hover:text-[#2d170e]"
                 >

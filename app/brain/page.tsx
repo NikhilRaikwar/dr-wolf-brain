@@ -2,10 +2,8 @@
 
 import React, { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import {
   DashboardShell,
-  DemoBanner,
   PageHeader,
   SkillMasteryRow,
   ThinkingPatternCard,
@@ -15,7 +13,6 @@ import {
   CurrentFocusCard,
   EmptyState,
 } from '@/components/dashboard'
-import { DEMO_BRAIN_DATA, BrainDashboardData } from '@/lib/brainDemoData'
 import {
   BarChart2,
   Brain,
@@ -24,32 +21,136 @@ import {
   ArrowRight,
   RefreshCw,
   AlertCircle,
-  Sparkles,
-  AlertTriangle,
+  Target,
 } from 'lucide-react'
 
-function BrainDashboardContent() {
-  const searchParams = useSearchParams()
-  const isDemoExplicit = searchParams.get('demo') === '1'
+export interface BrainDashboardData {
+  player: {
+    id: string
+    chesscom_username: string | null
+    estimated_rating: number | null
+    created_at: string
+  }
+  summary: {
+    sessions_played: number
+    episodes_analyzed: number
+  }
+  skills: Array<{
+    concept: string
+    label: string
+    mastery_score: number | null
+    evidence_count: number
+    trend: string
+    last_updated?: string | null
+  }>
+  hypotheses: Array<{
+    concept: string
+    label: string
+    description?: string
+    state: string
+    consumer_state: string
+    observed_count: number
+    evidence_count: number
+    observed_label?: string
+  }>
+  current_focus: {
+    concept: string | null
+    label: string
+    rationale: string
+    stage: string
+    stage_number?: number | null
+    board_preview?: {
+      fen: string
+      source_label?: string
+      episode_id?: string
+      caption?: string
+      arrow?: { from: [number, number]; to: [number, number] }
+    } | null
+  }
+  why_asked: {
+    narrative?: string | null
+    evidence_list?: string[]
+    evidence_citations?: Array<{
+      episode_id: string
+      move_number: number
+      fen: string
+      trigger_type: string
+      concept: string
+      concept_label: string
+      reasoning_outcome: string
+      move_outcome: string
+      created_at?: string | null
+    }>
+  }
+  recent_sessions: Array<{
+    id: string
+    session_number: number
+    date_label: string
+    reasoning_counts: {
+      recognized: number
+      partial: number
+      missed: number
+    }
+  }>
+  recent_belief_updates: Array<{
+    id: string
+    claim_type: string
+    concept_label: string
+    old_value: any
+    new_value: any
+    date_label?: string
+  }>
+}
 
+function BrainDashboardContent() {
   const [data, setData] = useState<BrainDashboardData | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsSetup, setNeedsSetup] = useState<boolean>(false)
+  const [isCreatingPlayer, setIsCreatingPlayer] = useState<boolean>(false)
+  const [setupUsername, setSetupUsername] = useState<string>('')
+  const [setupRating, setSetupRating] = useState<string>('800')
 
-  const fetchBrainData = async () => {
+  const handleExplicitSetup = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    setIsCreatingPlayer(true)
+    setError(null)
+    try {
+      const rting = parseInt(setupRating || '800', 10)
+      const res = await fetch('/api/player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chesscom_username: setupUsername.trim() || null,
+          estimated_rating: isNaN(rting) ? 800 : rting,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to create player profile (HTTP ${res.status})`)
+      }
+
+      const player = await res.json()
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dr_wolf_player_id', player.id)
+        localStorage.setItem('dr_wolf_username', player.chesscom_username || 'Learner')
+        localStorage.setItem('dr_wolf_rating', String(player.estimated_rating || 800))
+      }
+
+      setNeedsSetup(false)
+      await fetchBrainDataForId(player.id)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to initialize player')
+    } finally {
+      setIsCreatingPlayer(false)
+    }
+  }
+
+  const fetchBrainDataForId = async (playerId: string) => {
     setLoading(true)
     setError(null)
-
-    if (isDemoExplicit) {
-      // Explicit opt-in demo mode
-      setData(DEMO_BRAIN_DATA)
-      setLoading(false)
-      return
-    }
-
-    // Live API fetch (strict truth boundary: no silent fallback to demo data)
     try {
-      const res = await fetch('/api/brain')
+      const res = await fetch(`/api/brain?player_id=${playerId}`)
       if (res.ok) {
         const liveData: BrainDashboardData = await res.json()
         setData(liveData)
@@ -63,9 +164,83 @@ function BrainDashboardContent() {
     }
   }
 
+  const checkAndFetchBrainData = async () => {
+    const playerId = typeof window !== 'undefined' ? localStorage.getItem('dr_wolf_player_id') : null
+    if (!playerId) {
+      setNeedsSetup(true)
+      setLoading(false)
+      return
+    }
+
+    setNeedsSetup(false)
+    await fetchBrainDataForId(playerId)
+  }
+
   useEffect(() => {
-    fetchBrainData()
-  }, [isDemoExplicit])
+    checkAndFetchBrainData()
+  }, [])
+
+  // Onboarding / Setup Required State (No silent player creation)
+  if (needsSetup) {
+    return (
+      <DashboardShell>
+        <div className="max-w-md mx-auto py-12 px-4">
+          <div className="rounded-2xl border border-[#dec8af] bg-[#fffdfa] p-8 shadow-xl text-center space-y-6">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#f4e8d3] text-3xl shadow-xs">
+              ♟
+            </div>
+            <div className="space-y-2">
+              <h2 className="font-serif text-2xl font-bold text-[#2d170e]">
+                Setup Your Learner Profile
+              </h2>
+              <p className="font-serif text-xs text-[#735843] leading-relaxed">
+                Connect your Chess.com identity or continue as an anonymous learner to begin tracking your reasoning evidence.
+              </p>
+            </div>
+
+            <form onSubmit={handleExplicitSetup} className="space-y-4 text-left font-serif">
+              <div>
+                <label className="block text-xs font-bold text-[#452718] mb-1">
+                  Chess.com Username (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={setupUsername}
+                  onChange={(e) => setSetupUsername(e.target.value)}
+                  placeholder="e.g. magnuscarlsen"
+                  className="w-full rounded-xl border border-[#d8be96] bg-[#fdfaf3] px-3.5 py-2.5 text-xs text-[#2d170e] focus:outline-none focus:ring-2 focus:ring-[#b3782b]/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#452718] mb-1">
+                  Estimated Rating
+                </label>
+                <input
+                  type="number"
+                  value={setupRating}
+                  onChange={(e) => setSetupRating(e.target.value)}
+                  min="400"
+                  max="2800"
+                  className="w-full rounded-xl border border-[#d8be96] bg-[#fdfaf3] px-3.5 py-2.5 text-xs text-[#2d170e] focus:outline-none focus:ring-2 focus:ring-[#b3782b]/40"
+                />
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isCreatingPlayer}
+                  className="w-full rounded-xl bg-[#361f14] hover:bg-[#23120b] py-3 text-xs font-bold text-[#fbf1dc] shadow-sm transition-all disabled:opacity-50"
+                >
+                  {isCreatingPlayer ? 'Initializing...' : 'Continue as Learner'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </DashboardShell>
+    )
+  }
 
   // Loading State
   if (loading && !data) {
@@ -84,7 +259,7 @@ function BrainDashboardContent() {
   }
 
   // Production API Failure State
-  if (error && !isDemoExplicit) {
+  if (error) {
     return (
       <DashboardShell>
         <div className="space-y-6">
@@ -104,22 +279,15 @@ function BrainDashboardContent() {
               <p className="font-serif text-xs text-[#735843] leading-relaxed">
                 {error}
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <div className="flex items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={fetchBrainData}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#382014] px-4 py-2 text-xs font-semibold text-[#f6eedb] transition-all hover:bg-[#22110a]"
+                  onClick={checkAndFetchBrainData}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#382014] px-5 py-2.5 text-xs font-semibold text-[#f6eedb] transition-all hover:bg-[#22110a]"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   <span>Retry Connection</span>
                 </button>
-                <Link
-                  href="/brain?demo=1"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[#d8c7b0] bg-[#fffdfa] px-4 py-2 text-xs font-semibold text-[#5e402e] transition-all hover:bg-[#faf4ea]"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-[#b3782b]" />
-                  <span>View Demo Data (?demo=1)</span>
-                </Link>
               </div>
             </div>
           </div>
@@ -130,23 +298,22 @@ function BrainDashboardContent() {
 
   if (!data) return null
 
-  return (
-    <DashboardShell username={data.player.chesscom_username || (isDemoExplicit ? 'Alex' : 'Learner')}>
-      <div className="space-y-6">
-        {/* Explicit Demo Mode Warning Banner */}
-        {isDemoExplicit && <DemoBanner exitHref="/brain" />}
+  const isBrandNew = data.summary.sessions_played === 0 && data.summary.episodes_analyzed === 0
 
+  return (
+    <DashboardShell username={data.player.chesscom_username || 'Learner'}>
+      <div className="space-y-6">
         {/* Top Header matching reference image */}
         <PageHeader
           title="Your Chess Brain"
           subtitle="A coach that learns how you think."
-          username={data.player.chesscom_username || (isDemoExplicit ? 'Alex' : 'Learner')}
-          userRating={data.player.estimated_rating ? `${data.player.estimated_rating} Rating` : (isDemoExplicit ? '1600 Rapid • Developing' : 'Unrated')}
+          username={data.player.chesscom_username || 'Learner'}
+          userRating={data.player.estimated_rating ? `${data.player.estimated_rating} Rating` : 'Unrated'}
           memberSince={data.player.created_at ? `Member since ${new Date(data.player.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : 'Member'}
           sessionsCount={data.summary.sessions_played}
           episodesCount={data.summary.episodes_analyzed}
-          learningStage={data.current_focus.stage ? data.current_focus.stage.charAt(0).toUpperCase() + data.current_focus.stage.slice(1) : (isDemoExplicit ? 'Developing' : 'Baseline')}
-          showUserBadge={Boolean(data.player.chesscom_username || isDemoExplicit)}
+          learningStage={data.current_focus.stage ? data.current_focus.stage.charAt(0).toUpperCase() + data.current_focus.stage.slice(1) : 'Baseline'}
+          showUserBadge={Boolean(data.player.chesscom_username)}
         />
 
         {/* Row 1: Current Focus + Skill Mastery */}

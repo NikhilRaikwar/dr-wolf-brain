@@ -208,3 +208,101 @@ def test_canonical_fen_and_moves_uci_remain_unchanged_after_engine_failure(clien
     pos = client.get(f"/api/session/{session_id}/position").json()
     assert pos["moves_uci"] == ["e2e4", "e7e5"]
     assert pos["ply_count"] == 2
+
+
+def test_active_session_summary_returns_409_conflict_and_remains_active(client, db_session):
+    """
+    GET /api/session/{id}/summary must return 409 Conflict if session is still active,
+    and must not mutate session status or ended_at.
+    """
+    from app.models import Session
+
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+
+    # Session is active
+    sum_res = client.get(f"/api/session/{session_id}/summary")
+    assert sum_res.status_code == 409
+    assert "Session is still active" in sum_res.json()["detail"]
+
+    # Verify session remains active in DB
+    session = db_session.query(Session).filter(Session.id == session_id).first()
+    assert session.status == "active"
+    assert session.ended_at is None
+
+
+def test_post_finish_idempotency_and_ended_at_immutability(client, db_session):
+    """
+    POST /api/session/{id}/finish marks active session completed.
+    Repeated POST /finish calls are idempotent and do not alter ended_at.
+    """
+    from app.models import Session
+
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+
+    # First call: active -> completed
+    finish_1 = client.post(f"/api/session/{session_id}/finish")
+    assert finish_1.status_code == 200
+    assert finish_1.json()["status"] == "completed"
+
+    session = db_session.query(Session).filter(Session.id == session_id).first()
+    assert session.status == "completed"
+    assert session.ended_at is not None
+    original_ended_at = session.ended_at
+
+    # Second call: idempotent replay
+    finish_2 = client.post(f"/api/session/{session_id}/finish")
+    assert finish_2.status_code == 200
+    assert finish_2.json()["status"] == "completed"
+
+    db_session.refresh(session)
+    assert session.status == "completed"
+    assert session.ended_at == original_ended_at
+
+
+def test_completed_session_rejects_moves(client):
+    """
+    Once a session is completed (manually or naturally), POST /move is rejected with 400 Bad Request.
+    """
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+
+    # Finish session
+    client.post(f"/api/session/{session_id}/finish")
+
+    # Attempt move
+    move_res = client.post(f"/api/session/{session_id}/move", json={"move_uci": "e2e4"})
+    assert move_res.status_code == 400
+    assert "already completed" in move_res.json()["detail"]
+
+
+def test_completed_session_summary_and_dream_cycle_replay_stability(client):
+    """
+    Completed session allows GET /summary and POST /dream-cycle.
+    Replaying summary and dream cycle is stable with zero duplicate writes.
+    """
+    start_res = client.post("/api/session/start", json={})
+    session_id = start_res.json()["session_id"]
+
+    with patch.object(engine_adapter, "choose_training_move", return_value="e7e5"):
+        client.post(f"/api/session/{session_id}/move", json={"move_uci": "e2e4"})
+
+    # Complete session
+    client.post(f"/api/session/{session_id}/finish")
+
+    # Call summary twice
+    s1 = client.get(f"/api/session/{session_id}/summary")
+    assert s1.status_code == 200
+    s2 = client.get(f"/api/session/{session_id}/summary")
+    assert s2.status_code == 200
+    assert s1.json()["stats"] == s2.json()["stats"]
+
+    # Call dream cycle twice
+    dc1 = client.post("/api/dream-cycle", json={"session_id": session_id})
+    assert dc1.status_code == 200
+    dc2 = client.post("/api/dream-cycle", json={"session_id": session_id})
+    assert dc2.status_code == 200
+    assert dc1.json()["ran_at"] == dc2.json()["ran_at"]
+
+

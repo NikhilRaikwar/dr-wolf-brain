@@ -182,4 +182,34 @@
   - **No LangGraph or Agent Graphs:**
     - Orchestration is implemented via clean, deterministic Python transactional functions (`backend/app/dream/cycle.py`) without LangGraph or autonomous agent loops.
 
+## Milestone 8: Real-Data Cutover & Canonical Contract Pass
+- **Date:** 2026-09-28
+- **Focus:** Complete real-data cutover, player identity safety isolation, canonical endpoint contracts, and session closure invariants.
+- **Decisions & Implementation:**
+  - **Player Identity Safety & Non-Auth Semantics:**
+    - `POST /api/player` creates a fresh UUID `Player` entity on every explicit setup invocation.
+    - `chesscom_username` is strictly optional metadata (not a login identifier or unique credential).
+    - Multiple learners supplying the same Chess.com username receive distinct UUIDs with completely isolated sessions, skills, hypotheses, and evidence records.
+    - Documented explicitly: Current player UUID stored in `localStorage` is prototype local learner identity, not production authentication.
+  - **No Implicit Player Creation:**
+    - Visiting `/brain` without an established `dr_wolf_player_id` presents an honest onboarding setup card requiring explicit user choice ("Continue as Learner" or enter details).
+    - `GET /api/brain` without a valid player ID raises HTTP 404 rather than silently inserting orphan DB rows.
+  - **Single Canonical Dream Cycle Route:**
+    - Removed any route aliases (`/run`); strictly one canonical route: `POST /api/dream-cycle`.
+  - **Canonical Move Outcome & Trigger Taxonomies:**
+    - Preserved frozen move outcomes: `best`, `acceptable`, `inaccurate`, `mistake`.
+    - Preserved canonical trigger identifiers: `opponent_threat`, `hanging`, `king_safety`, `forcing_candidate`, `passive_piece`.
+  - **Session Closure & Rejection Invariants:**
+    - `POST /api/session/{id}/finish` is the explicit, idempotent endpoint that transitions an active session to `completed` and records `ended_at`. Replaying it is safe and does not mutate `ended_at`.
+    - `GET /api/session/{id}/summary` never silently closes an active game; it returns HTTP 409 Conflict if the session is still active.
+    - Post-completion moves to `POST /api/session/{id}/move` are rejected with HTTP 400 Bad Request.
+    - Summary replay is idempotent and Dream Cycle runs safely exactly once.
+  - **Import Path Status Truthfulness & Remaining Product Scope:**
+    - Real Live-Play path is fully implemented.
+    - Real Import path (`POST /api/import/chesscom`, `POST /api/import/pgn`) is not implemented yet, with honest "Coming Next" badges on `/games`.
+    - For this canonical-contract milestone: 0 remaining blockers.
+    - For the full PRD product: remaining work is the import pipeline.
+
+
+
 

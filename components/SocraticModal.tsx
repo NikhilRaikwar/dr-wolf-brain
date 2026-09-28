@@ -70,15 +70,6 @@ export function SocraticModal({
     setIsSubmitting(true)
     setError(null)
 
-    // Demo session isolation: Never send demo-isolated-session to server
-    if (sessionId === 'demo-isolated-session' || sessionId.startsWith('demo-')) {
-      setTimeout(() => {
-        setIsSubmitting(false)
-        onAnswered()
-      }, 100)
-      return
-    }
-
     try {
       const res = await fetch(
         `/api/session/${sessionId}/interrupt/${interruption.episode_id}/answer`,

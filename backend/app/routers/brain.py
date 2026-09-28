@@ -59,11 +59,10 @@ def get_brain_dashboard(
     else:
         player = db.query(Player).order_by(desc(Player.created_at)).first()
         if not player:
-            # Create a default player row if DB is empty
-            player = Player(estimated_rating=800)
-            db.add(player)
-            db.commit()
-            db.refresh(player)
+            raise HTTPException(
+                status_code=404,
+                detail="No player found. Please complete learner setup first.",
+            )
 
     resolved_player_id = player.id
 

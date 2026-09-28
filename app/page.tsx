@@ -44,36 +44,50 @@ export default function HomePage() {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
-  const [usernameInput, setUsernameInput] = useState('Alex')
-  const [ratingInput, setRatingInput] = useState('1600')
+  const [usernameInput, setUsernameInput] = useState('')
+  const [ratingInput, setRatingInput] = useState('1200')
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'review' | 'evidence' | 'engineLines'>('review')
   const [activeStage, setActiveStage] = useState<number>(0)
   const [isPipelinePaused, setIsPipelinePaused] = useState<boolean>(false)
 
-  const handleConnectSubmit = (e?: React.FormEvent) => {
+  const handleConnectSubmit = async (e?: React.FormEvent, customUsername?: string, customRating?: string) => {
     if (e) e.preventDefault()
     setIsConnecting(true)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('dr_wolf_username', usernameInput || 'Alex')
-      localStorage.setItem('dr_wolf_rating', ratingInput || '1600')
-    }
-    setTimeout(() => {
-      setIsConnecting(false)
+    setConnectionError(null)
+
+    const uname = (customUsername !== undefined ? customUsername : usernameInput).trim()
+    const rting = parseInt((customRating !== undefined ? customRating : ratingInput) || '800', 10)
+
+    try {
+      const res = await fetch('/api/player', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chesscom_username: uname || null,
+          estimated_rating: isNaN(rting) ? 800 : rting,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Failed to create player profile (HTTP ${res.status})`)
+      }
+
+      const player = await res.json()
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('dr_wolf_player_id', player.id)
+        localStorage.setItem('dr_wolf_username', player.chesscom_username || 'Learner')
+        localStorage.setItem('dr_wolf_rating', String(player.estimated_rating || 800))
+      }
+
       setAuthModalOpen(false)
       router.push('/overview')
-    }, 400)
-  }
-
-  const handleQuickLaunch = (name: string, rating: string) => {
-    setUsernameInput(name)
-    setRatingInput(rating)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('dr_wolf_username', name)
-      localStorage.setItem('dr_wolf_rating', rating)
+    } catch (err: any) {
+      setConnectionError(err.message || 'Could not connect to backend server')
+    } finally {
+      setIsConnecting(false)
     }
-    setAuthModalOpen(false)
-    router.push('/overview')
   }
 
   useEffect(() => {
@@ -262,27 +276,33 @@ export default function HomePage() {
                 ♞
               </div>
               <h2 className="font-serif-custom text-2xl font-bold text-[#2d170e]">
-                Connect to Dr. Wolf Brain
+                Player Setup
               </h2>
               <p className="font-serif-custom text-xs text-[#735843]">
-                Enter any username or choose a quick demo profile to launch your dashboard.
+                Enter your Chess.com or player username, or start directly with a fresh learner profile.
               </p>
             </div>
+
+            {/* Error Message */}
+            {connectionError && (
+              <div className="rounded-xl border border-[#f5c2bd] bg-[#fdf2f1] p-3 text-xs text-[#9c2f24]">
+                {connectionError}
+              </div>
+            )}
 
             {/* Form */}
             <form onSubmit={handleConnectSubmit} className="space-y-4 font-serif-custom text-xs">
               <div>
                 <label className="block text-[#4f3222] font-semibold mb-1.5 text-xs">
-                  Chess.com Username / Player Name
+                  Username (optional)
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={usernameInput}
                     onChange={(e) => setUsernameInput(e.target.value)}
-                    placeholder="e.g. Alex, GothamChess, or your name"
+                    placeholder="e.g. GothamChess, Magnus, or your name"
                     className="w-full rounded-xl border border-[#dec8af] bg-[#faf5ec] px-3.5 py-2.5 text-sm font-medium text-[#2d170e] placeholder-[#9b8370] focus:border-[#b3782b] focus:bg-white focus:outline-none shadow-xs"
-                    required
                   />
                 </div>
               </div>
@@ -293,7 +313,7 @@ export default function HomePage() {
                   Estimated Rating Level
                 </label>
                 <div className="grid grid-cols-4 gap-2">
-                  {['1000', '1400', '1600', '2000'].map((rt) => (
+                  {['800', '1200', '1500', '1800'].map((rt) => (
                     <button
                       key={rt}
                       type="button"
@@ -316,34 +336,22 @@ export default function HomePage() {
                 disabled={isConnecting}
                 className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#361f14] py-3 text-sm font-bold text-[#fbf1dc] hover:bg-[#23120b] shadow-sm transition-all disabled:opacity-50"
               >
-                <span>{isConnecting ? 'Connecting Learner Model...' : 'Launch Dashboard'}</span>
+                <span>{isConnecting ? 'Initializing Player...' : 'Launch Dashboard'}</span>
                 <ArrowRight size={16} />
               </button>
             </form>
 
-            {/* Quick Demo Launch Profiles */}
-            <div className="pt-2 border-t border-[#f0e6d8] space-y-2">
-              <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#8c745f] text-center">
-                Or 1-Click Instant Access
-              </span>
-              <div className="grid grid-cols-2 gap-2.5 font-serif-custom text-xs">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLaunch('Alex', '1600')}
-                  className="flex flex-col items-start p-2.5 rounded-xl border border-[#dec8af] bg-[#faf6ee] hover:bg-[#f4ebe0] transition-colors text-left"
-                >
-                  <span className="font-bold text-[#2d170e]">👑 Alex (1600)</span>
-                  <span className="text-[10px] text-[#8c745f] mt-0.5">12 episodes analyzed</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLaunch('Guest', '1200')}
-                  className="flex flex-col items-start p-2.5 rounded-xl border border-[#dec8af] bg-[#faf6ee] hover:bg-[#f4ebe0] transition-colors text-left"
-                >
-                  <span className="font-bold text-[#2d170e]">⚡ Guest (1200)</span>
-                  <span className="text-[10px] text-[#8c745f] mt-0.5">Fresh baseline model</span>
-                </button>
-              </div>
+            {/* Quick Anonymous Learner Launch */}
+            <div className="pt-2 border-t border-[#f0e6d8]">
+              <button
+                type="button"
+                onClick={() => handleConnectSubmit(undefined, '', '800')}
+                disabled={isConnecting}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl border border-[#dec8af] bg-[#faf6ee] hover:bg-[#f4ebe0] transition-colors font-serif-custom text-xs font-bold text-[#2d170e]"
+              >
+                <span>Continue as Learner (Fresh Model)</span>
+                <ArrowRight size={14} className="text-[#845722]" />
+              </button>
             </div>
           </div>
         </div>

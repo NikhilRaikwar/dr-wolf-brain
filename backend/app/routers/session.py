@@ -408,12 +408,20 @@ def get_session_summary(
     session_id: uuid.UUID,
     db: DBSession = Depends(get_db),
 ):
-    """Grade all committed episodes in the session and return session summary data."""
+    """Grade all committed episodes in the session and return session summary data.
+    Requires session to be completed (via natural chess game_over or explicit POST /finish).
+    """
     session = db.query(Session).filter(Session.id == session_id).first()
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
+        )
+
+    if session.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Session is still active. Finish the session before requesting summary.",
         )
 
     episodes = (
@@ -503,3 +511,25 @@ def get_session_summary(
         takeaway=takeaway,
         review_cards=review_cards,
     )
+
+
+@router.post("/{session_id}/finish")
+def finish_session(
+    session_id: uuid.UUID,
+    db: DBSession = Depends(get_db),
+):
+    """Explicitly finish and close a chess session (idempotent), preventing further moves."""
+    session = db.query(Session).filter(Session.id == session_id).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+    if session.status == "active":
+        session.status = "completed"
+        session.ended_at = func.now()
+        db.commit()
+        db.refresh(session)
+    return {"session_id": str(session.id), "status": session.status}
+
+

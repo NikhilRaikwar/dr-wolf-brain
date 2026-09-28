@@ -22,15 +22,12 @@ interface CurrentFocusCardProps {
 }
 
 export function CurrentFocusCard({
-  label = 'Opponent Threat Detection',
-  rationale = 'You often miss your opponent\'s counterplay after spotting your own attacking idea.',
-  stageNumber = 2,
+  label = 'Needs more evidence',
+  rationale = 'Play a Think First session or import games to generate initial observations.',
+  stageNumber,
   boardPreview,
   className = '',
 }: CurrentFocusCardProps) {
-  const defaultFen =
-    boardPreview?.fen || 'r2q1rk1/pp1b1ppp/2n1pn2/2bp4/2P5/2N2NP1/PP2PPBP/R1BQ1RK1 w - - 0 9'
-  const defaultArrow = boardPreview?.arrow || { from: [5, 3], to: [3, 5] }
 
   const steps = [
     { num: 1, label: 'Understand' },
@@ -113,26 +110,40 @@ export function CurrentFocusCard({
           </div>
         </div>
 
-        {/* Right Side: Chessboard Preview */}
+        {/* Right Side: Chessboard Preview or Clean Empty State */}
         <div className="flex flex-col items-center justify-center md:col-span-5">
-          <div className="w-full max-w-[210px] aspect-square rounded-[6px] overflow-hidden shadow-xs border border-[#e5d8c5]">
-            <ChessboardView
-              position={fenToBoardGrid(defaultFen)}
-              arrow={defaultArrow}
-              showCoords={false}
-              className="w-full h-full"
-            />
-          </div>
-          {boardPreview?.source_label && (
-            <div className="mt-2 text-left w-full max-w-[210px] font-serif">
-              <p className="text-[11px] font-semibold text-[#2d170e] leading-tight">
-                {boardPreview.source_label}
-              </p>
-              {boardPreview.caption && (
-                <p className="text-[10px] text-[#8c745f] italic leading-tight">
-                  {boardPreview.caption}
-                </p>
+          {boardPreview?.fen ? (
+            <>
+              <div className="w-full max-w-[210px] aspect-square rounded-[6px] overflow-hidden shadow-xs border border-[#e5d8c5]">
+                <ChessboardView
+                  position={fenToBoardGrid(boardPreview.fen)}
+                  arrow={boardPreview.arrow}
+                  showCoords={false}
+                  className="w-full h-full"
+                />
+              </div>
+              {boardPreview.source_label && (
+                <div className="mt-2 text-left w-full max-w-[210px] font-serif">
+                  <p className="text-[11px] font-semibold text-[#2d170e] leading-tight">
+                    {boardPreview.source_label}
+                  </p>
+                  {boardPreview.caption && (
+                    <p className="text-[10px] text-[#8c745f] italic leading-tight">
+                      {boardPreview.caption}
+                    </p>
+                  )}
+                </div>
               )}
+            </>
+          ) : (
+            <div className="w-full max-w-[210px] min-h-[170px] rounded-xl border border-dashed border-[#dec8af] bg-[#faf6ee]/70 p-4 flex flex-col items-center justify-center text-center">
+              <Target className="h-6 w-6 text-[#9b8370] mb-2 opacity-80" />
+              <p className="font-serif text-xs font-semibold text-[#5e402e]">
+                No position recorded
+              </p>
+              <p className="font-serif text-[11px] text-[#8c745f] mt-1 leading-snug">
+                Play a Think First session to generate focus positions.
+              </p>
             </div>
           )}
         </div>

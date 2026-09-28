@@ -2,8 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
-import { isDemoMode, getNavHref } from '@/lib/demo/demoUtils'
+import { usePathname } from 'next/navigation'
 import {
   Home,
   Brain,
@@ -25,8 +24,6 @@ export function DashboardSidebar({
   onCloseMobile,
 }: DashboardSidebarProps) {
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const isDemo = isDemoMode(searchParams)
 
   const mainNavItems = [
     {
@@ -90,7 +87,7 @@ export function DashboardSidebar({
             return (
               <Link
                 key={item.label}
-                href={getNavHref(item.href, isDemo)}
+                href={item.href}
                 onClick={onCloseMobile}
                 className={`flex items-center gap-3.5 rounded-xl px-3.5 py-2.5 font-serif text-[15px] transition-all ${
                   isActive
@@ -120,7 +117,7 @@ export function DashboardSidebar({
             return (
               <Link
                 key={item.label}
-                href={getNavHref(item.href, isDemo)}
+                href={item.href}
                 onClick={onCloseMobile}
                 className={`flex items-center gap-3.5 rounded-xl px-3.5 py-2.5 font-serif text-[15px] transition-all ${
                   isActive

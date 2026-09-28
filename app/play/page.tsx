@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import { InteractiveChessboard } from '@/components/InteractiveChessboard'
 import { SocraticModal, InterruptionData } from '@/components/SocraticModal'
-import { DemoBanner } from '@/components/dashboard'
 import { Chess } from 'chess.js'
 
 interface SessionState {
@@ -55,7 +54,7 @@ export default function PlayPage() {
             session_id: data.session_id,
             requested_engine_elo: 900,
             effective_engine_elo: null,
-            engine_mode: 'custom_beginner',
+            engine_mode: 'uci_elo',
             color: (data.player_color as 'white' | 'black') || 'white',
             fen: data.fen,
             moves_uci: data.moves_uci || [],
@@ -79,33 +78,12 @@ export default function PlayPage() {
         }
       }
 
-      // Check explicit demo mode
-      const urlParams = new URLSearchParams(window.location.search)
-      const isDemo = urlParams.get('demo') === '1'
-
-      if (isDemo) {
-        setSession({
-          session_id: 'demo-isolated-session',
-          requested_engine_elo: 900,
-          effective_engine_elo: 900,
-          engine_mode: 'skill_floor',
-          color: 'white',
-          fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-          moves_uci: [],
-          ply_count: 0,
-          game_over: false,
-          result: null,
-        })
-        setLastMove(null)
-        setIsLoading(false)
-        return
-      }
-
-      // Start new live session (strict server-authoritative truth)
+      // Start new live session on backend with real player_id
+      const storedPlayerId = typeof window !== 'undefined' ? localStorage.getItem('dr_wolf_player_id') : null
       const startRes = await fetch('/api/session/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify(storedPlayerId ? { player_id: storedPlayerId } : {}),
       })
 
       if (!startRes.ok) {
@@ -142,7 +120,7 @@ export default function PlayPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const urlSessionId = params.get('session_id')
-    const storedSessionId = localStorage.getItem('dr_wolf_session_id')
+    const storedSessionId = typeof window !== 'undefined' ? localStorage.getItem('dr_wolf_session_id') : null
     const sessionIdToLoad = urlSessionId || storedSessionId || undefined
 
     initializeSession(sessionIdToLoad)
@@ -159,48 +137,6 @@ export default function PlayPage() {
     const pFrom = moveUci.substring(0, 2)
     const pTo = moveUci.substring(2, 4)
     setLastMove({ from: pFrom, to: pTo })
-
-    // Demo session isolation: Never send demo session to backend
-    if (session.session_id === 'demo-isolated-session' || session.session_id.startsWith('demo-')) {
-      try {
-        const clientChess = new Chess(session.fen)
-        const promo = moveUci.length > 4 ? moveUci[4] : undefined
-        const moveRes = clientChess.move({ from: pFrom, to: pTo, promotion: promo })
-        if (!moveRes) {
-          throw new Error('Illegal move in demo session')
-        }
-
-        let demoEngineMove: string | null = null
-        if (!clientChess.isGameOver()) {
-          const legalMoves = clientChess.moves({ verbose: true })
-          if (legalMoves.length > 0) {
-            const picked = legalMoves[Math.floor(Math.random() * legalMoves.length)]
-            const emRes = clientChess.move(picked)
-            if (emRes) {
-              demoEngineMove = `${emRes.from}${emRes.to}${emRes.promotion || ''}`
-              setLastMove({ from: emRes.from, to: emRes.to })
-            }
-          }
-        }
-
-        const updatedMoves = [...session.moves_uci, moveUci]
-        if (demoEngineMove) updatedMoves.push(demoEngineMove)
-
-        setSession({
-          ...session,
-          fen: clientChess.fen(),
-          moves_uci: updatedMoves,
-          ply_count: updatedMoves.length,
-          game_over: clientChess.isGameOver(),
-          result: clientChess.isCheckmate() ? 'Checkmate' : clientChess.isDraw() ? 'Draw' : null,
-        })
-      } catch (e: any) {
-        setErrorMsg(e.message || 'Invalid move')
-      } finally {
-        setIsThinking(false)
-      }
-      return
-    }
 
     try {
       const res = await fetch(`/api/session/${session.session_id}/move`, {
@@ -259,8 +195,54 @@ export default function PlayPage() {
     setJustAnsweredPrompt(true)
   }
 
+  const [summaryData, setSummaryData] = useState<any | null>(null)
+  const [isFinishing, setIsFinishing] = useState<boolean>(false)
+
+  const handleFinishSession = async () => {
+    if (!session || isFinishing) return
+    setIsFinishing(true)
+    setErrorMsg(null)
+
+    try {
+      // 1. Explicitly finish session on server (sets status="completed" and ended_at)
+      const finishRes = await fetch(`/api/session/${session.session_id}/finish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!finishRes.ok) {
+        throw new Error(`Failed to finish session: HTTP ${finishRes.status}`)
+      }
+
+      // 2. Fetch real session summary (server grades all committed episodes on completed session)
+      const summaryRes = await fetch(`/api/session/${session.session_id}/summary`)
+      if (!summaryRes.ok) {
+        throw new Error(`Failed to grade session: HTTP ${summaryRes.status}`)
+      }
+      const summary = await summaryRes.json()
+
+      // 3. Trigger Dream Cycle belief consolidation
+      try {
+        await fetch('/api/dream-cycle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: session.session_id }),
+        })
+      } catch (dcErr) {
+        console.warn('Dream cycle notification:', dcErr)
+      }
+
+      setSession((prev) => (prev ? { ...prev, game_over: true } : null))
+      setSummaryData(summary)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error finishing session')
+    } finally {
+      setIsFinishing(false)
+    }
+  }
+
   const handleNewGame = () => {
     localStorage.removeItem('dr_wolf_session_id')
+    setSummaryData(null)
     initializeSession()
   }
 
@@ -319,11 +301,11 @@ export default function PlayPage() {
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              href="/"
+              href="/overview"
               className="inline-flex items-center gap-1.5 font-serif-custom text-[15px] font-semibold text-[#654329] hover:text-[#2d170e] transition-colors"
             >
               <ArrowLeft size={17} />
-              <span>Landing</span>
+              <span>Brain Dashboard</span>
             </Link>
             <span className="text-[#d8c09a]">|</span>
             <div className="flex items-center gap-2">
@@ -335,6 +317,16 @@ export default function PlayPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {session && (session.ply_count > 0 || session.game_over) && (
+              <button
+                type="button"
+                onClick={handleFinishSession}
+                disabled={isFinishing}
+                className="inline-flex items-center gap-2 bg-[#361f14] hover:bg-[#23120b] text-[#fbf1dc] px-4 py-2 rounded-[6px] font-serif-custom text-[14px] font-bold shadow-sm transition-all disabled:opacity-50"
+              >
+                <span>{isFinishing ? 'Grading...' : 'Finish & Grade'}</span>
+              </button>
+            )}
             <button
               onClick={handleNewGame}
               className="inline-flex items-center gap-2 bg-[#ecd4ab] hover:bg-[#e4c99c] border border-[#bfa075] text-[#381f14] px-4 py-2 rounded-[6px] font-serif-custom text-[14px] font-bold shadow-sm transition-all active:scale-[0.98]"
@@ -362,7 +354,7 @@ export default function PlayPage() {
               Backend Server Unavailable
             </h2>
             <p className="font-serif-custom text-xs text-[#735843] mb-5 leading-relaxed">{errorMsg}</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => initializeSession()}
@@ -370,26 +362,13 @@ export default function PlayPage() {
               >
                 Retry Connection
               </button>
-              <Link
-                href="/play?demo=1"
-                className="w-full sm:w-auto border border-[#dec8af] bg-[#faf5ec] hover:bg-[#f2e7d5] text-[#5e402e] px-4 py-2.5 rounded-xl font-serif-custom text-xs font-semibold transition-all"
-              >
-                Open Demo Session (?demo=1)
-              </Link>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Demo Mode Banner if session is demo */}
-            {session?.session_id === 'demo-isolated-session' && (
-              <div className="max-w-[1240px] mx-auto">
-                <DemoBanner exitHref="/play" />
-              </div>
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left: Interactive Chess Board */}
-            <div className="lg:col-span-7 flex flex-col items-center">
+              {/* Left: Interactive Chess Board */}
+              <div className="lg:col-span-7 flex flex-col items-center">
               {/* Opponent Badge Header */}
               <div className="w-full max-w-[480px] sm:max-w-[540px] mb-3 flex items-center justify-between px-2">
                 <div className="flex items-center gap-3">
@@ -581,6 +560,86 @@ export default function PlayPage() {
           interruption={activeInterruption}
           onAnswered={handleInterruptionAnswered}
         />
+      )}
+
+      {/* Real Graded Session Summary & Dream Cycle Result Modal */}
+      {summaryData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl border border-[#dec8af] bg-[#fffdfa] p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="text-center space-y-1.5 pt-1">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#f4e8d3] text-2xl shadow-xs">
+                ♟
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-[#2d170e]">
+                Session Summary & Brain Graded
+              </h2>
+              <p className="font-serif text-xs text-[#735843]">
+                Dr. Wolf has evaluated your reasoning against Stockfish truth and consolidated your learner model.
+              </p>
+            </div>
+
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-2 gap-3 font-serif text-xs">
+              <div className="rounded-xl border border-[#dec8af] bg-[#faf5ec] p-3 text-center">
+                <span className="text-[11px] text-[#8c745f] block">Total Moves</span>
+                <span className="text-lg font-bold text-[#2d170e]">{summaryData.total_moves || session?.moves_uci?.length || 0}</span>
+              </div>
+              <div className="rounded-xl border border-[#dec8af] bg-[#faf5ec] p-3 text-center">
+                <span className="text-[11px] text-[#8c745f] block">Episodes Graded</span>
+                <span className="text-lg font-bold text-[#2d170e]">{summaryData.episodes_graded?.length || 0}</span>
+              </div>
+            </div>
+
+            {/* Graded Episodes List */}
+            {summaryData.episodes_graded && summaryData.episodes_graded.length > 0 ? (
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <span className="block text-[11px] font-bold text-[#2d170e]">Graded Moments:</span>
+                {summaryData.episodes_graded.map((ep: any, idx: number) => (
+                  <div key={idx} className="rounded-xl border border-[#ede2d2] bg-[#fffdfa] p-3 font-serif text-xs flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-[#2d170e] block">Move {ep.move_number}</span>
+                      <span className="text-[11px] text-[#735843]">
+                        {ep.trigger_type ? ep.trigger_type.replace(/_/g, ' ') : 'Tactical Pivot'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        ep.reasoning_outcome === 'recognized'
+                          ? 'bg-[#e8f1e9] text-[#3b6348]'
+                          : ep.reasoning_outcome === 'partial'
+                          ? 'bg-[#fdf3e7] text-[#9b581e]'
+                          : 'bg-[#fceeed] text-[#9c2f24]'
+                      }`}>
+                        Reasoning: {ep.reasoning_outcome}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="font-serif text-xs text-[#8c745f] italic text-center py-2">
+                No Think First interruptions occurred this game (triggers fire after move 8 on critical tactical pivots).
+              </p>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleNewGame}
+                className="w-full sm:w-1/2 rounded-xl border border-[#dec8af] bg-[#fffdfa] hover:bg-[#faf5ec] py-2.5 text-xs font-serif font-semibold text-[#5e402e] transition-all"
+              >
+                Play Another Game
+              </button>
+              <Link
+                href="/overview"
+                className="w-full sm:w-1/2 rounded-xl bg-[#361f14] hover:bg-[#23120b] py-2.5 text-xs font-serif font-bold text-[#fbf1dc] text-center shadow-sm transition-all"
+              >
+                View Your Brain Dashboard
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )

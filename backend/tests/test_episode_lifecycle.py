@@ -351,7 +351,10 @@ def test_golden_think_first_e2e_session_loop(client, db_session):
     assert episode.status == "committed"
     assert episode.learner_action == {"move_played": legal_move}
 
-    # Step 9: Get summary -> triggers grading of committed episodes
+    # Step 9: Finish session then get summary -> triggers grading of committed episodes
+    finish_res = client.post(f"/api/session/{session_id}/finish")
+    assert finish_res.status_code == 200
+
     summary_res = client.get(f"/api/session/{session_id}/summary")
     assert summary_res.status_code == 200
     summary_data = summary_res.json()
@@ -368,7 +371,10 @@ def test_golden_think_first_e2e_session_loop(client, db_session):
 
 
 def test_summary_endpoint_idempotency(client, db_session):
-    """Calling summary twice on graded episodes is idempotent."""
+    """Calling summary twice on graded episodes is idempotent and performs zero re-grading."""
+    from unittest.mock import patch
+    import app.routers.session as session_router
+
     start_res = client.post("/api/session/start", json={})
     session_id = start_res.json()["session_id"]
     session = db_session.query(Session).filter(Session.id == session_id).first()
@@ -385,27 +391,58 @@ def test_summary_endpoint_idempotency(client, db_session):
             "question_id": "opponent_threat_counterplay",
             "engine_facts": {"threat": "mate", "key_squares": ["g2"]},
         },
-        learner_reasoning={"choice": "look_for_counterplay", "squares_highlighted": ["g2"]},
+        learner_reasoning={"choice": "look_for_counterplay", "squares_highlighted": ["g2"], "free_text": "I see the mate threat"},
         learner_action={"move_played": "e2e4"},
     )
     db_session.add(episode)
     db_session.commit()
 
-    # Call 1
-    res1 = client.get(f"/api/session/{session_id}/summary")
-    assert res1.status_code == 200
-    db_session.refresh(episode)
-    assert episode.status == "graded"
-    outcome1 = episode.reasoning_outcome
-    move_outcome1 = episode.move_outcome
+    # Pre-condition: Episode is in committed state
+    assert episode.status == "committed"
 
-    # Call 2
-    res2 = client.get(f"/api/session/{session_id}/summary")
-    assert res2.status_code == 200
-    db_session.refresh(episode)
-    assert episode.status == "graded"
-    assert episode.reasoning_outcome == outcome1
-    assert episode.move_outcome == move_outcome1
+    # Finish session explicitly
+    client.post(f"/api/session/{session_id}/finish")
+
+    real_grade_fn = session_router.grade_committed_episode
+    grade_call_count = 0
+
+    def counting_grade(*args, **kwargs):
+        nonlocal grade_call_count
+        grade_call_count += 1
+        return real_grade_fn(*args, **kwargs)
+
+    with patch.object(session_router, "grade_committed_episode", side_effect=counting_grade):
+        # Call 1: Grades committed episode
+        res1 = client.get(f"/api/session/{session_id}/summary")
+        assert res1.status_code == 200
+        data1 = res1.json()
+        assert grade_call_count == 1
+
+        db_session.refresh(episode)
+        assert episode.status == "graded"
+        outcome1 = episode.reasoning_outcome
+        move_outcome1 = episode.move_outcome
+        engine_truth1 = dict(episode.engine_truth)
+        cp_loss1 = episode.move_quality_cp_loss
+
+        # Call 2: Must NOT re-grade already graded episode (grade_call_count must remain 1)
+        res2 = client.get(f"/api/session/{session_id}/summary")
+        assert res2.status_code == 200
+        data2 = res2.json()
+        assert grade_call_count == 1  # 0 additional grading calls on replay
+
+        db_session.refresh(episode)
+        assert episode.status == "graded"
+        assert episode.reasoning_outcome == outcome1
+        assert episode.move_outcome == move_outcome1
+        assert episode.engine_truth == engine_truth1
+        assert episode.move_quality_cp_loss == cp_loss1
+
+        # Summary payloads are structurally identical
+        assert data1["stats"] == data2["stats"]
+        assert data1["review_cards"] == data2["review_cards"]
+        assert data1["takeaway"] == data2["takeaway"]
+
 
 
 def test_summary_endpoint_engine_failure_fails_closed(client, db_session):
@@ -435,6 +472,9 @@ def test_summary_endpoint_engine_failure_fails_closed(client, db_session):
     db_session.add(episode)
     db_session.commit()
 
+    # Finish session first
+    client.post(f"/api/session/{session_id}/finish")
+
     with patch("app.routers.session.grade_committed_episode", side_effect=EngineUnavailableError("Engine died")):
         res = client.get(f"/api/session/{session_id}/summary")
         assert res.status_code == 503
@@ -443,4 +483,5 @@ def test_summary_endpoint_engine_failure_fails_closed(client, db_session):
     assert episode.status == "committed"
     assert episode.engine_truth is None
     assert episode.reasoning_outcome is None
+
 
