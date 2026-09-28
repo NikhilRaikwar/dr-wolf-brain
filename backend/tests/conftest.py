@@ -13,8 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 # Use in-memory SQLite with StaticPool for fast, isolated unit test suite by default
-if not os.environ.get("DATABASE_URL"):
+if not os.environ.get("USE_POSTGRES_TEST"):
     os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
+if not os.environ.get("USE_LIVE_LLM_TEST"):
+    os.environ["OPENROUTER_API_KEY"] = ""
 
 from app.db import Base, get_db
 from app import models

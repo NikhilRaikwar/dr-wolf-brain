@@ -21,8 +21,19 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+def normalize_database_url(url: str) -> str:
+    """Normalize PostgreSQL connection strings for SQLAlchemy driver compatibility."""
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
 def run_migrations_offline() -> None:
-    url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+    raw_url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+    url = normalize_database_url(raw_url)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -36,7 +47,8 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+    raw_url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+    configuration["sqlalchemy.url"] = normalize_database_url(raw_url)
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",

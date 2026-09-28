@@ -3,8 +3,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
-# If running in SQLite or testing, support check_same_thread=False
-database_url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+def normalize_database_url(url: str) -> str:
+    """Normalize PostgreSQL connection strings for SQLAlchemy driver compatibility."""
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return url
+
+raw_database_url = os.environ.get("DATABASE_URL", settings.DATABASE_URL)
+database_url = normalize_database_url(raw_database_url)
 connect_args = {}
 if database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
