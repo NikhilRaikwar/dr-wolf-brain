@@ -175,7 +175,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 - **Pytest (Backend)**: 155 unit tests + 5 PostgreSQL concurrency tests in CI.
 - **TypeScript**: `pnpm run build` passes with zero errors across 14 static routes.
-- **Chess Example Verifier**: `npm run verify:chess` validates all landing mockups and FENs.
+- **Chess Example Verifier**: `pnpm run verify:chess` validates all landing mockups and FENs.
 - **Production Deployment**: Verified live on Vercel and Render.
 
 ---
