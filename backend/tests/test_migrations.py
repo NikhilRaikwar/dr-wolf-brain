@@ -76,8 +76,26 @@ def test_003_migration_sql_exists_and_adds_columns():
     assert "dream_cycle_runs" in content
 
 
+def test_004_migration_sql_exists_and_adds_uniqueness_constraints():
+    """Verify 004_game_import_uniqueness.sql contains preflight check and unique constraints on games and positions."""
+    sql4_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "migrations", "004_game_import_uniqueness.sql")
+    )
+    assert os.path.exists(sql4_path), f"Missing migration file: {sql4_path}"
+
+    with open(sql4_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "uq_game_player_source_external_ref" in content
+    assert "uq_position_game_move_fen" in content
+    assert "UNIQUE (player_id, source, external_ref)" in content or "UNIQUE(player_id, source, external_ref)" in content
+    assert "UNIQUE (game_id, move_number, fen)" in content or "UNIQUE(game_id, move_number, fen)" in content
+    assert "HAVING COUNT(*) > 1" in content
+    assert "RAISE EXCEPTION" in content
+
+
 def test_alembic_migration_parity():
-    """Verify Alembic revisions 001, 002, and 003 form a valid migration chain."""
+    """Verify Alembic revisions 001, 002, 003, and 004 form a valid migration chain."""
     rev1_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "001_initial.py")
     )
@@ -87,9 +105,13 @@ def test_alembic_migration_parity():
     rev3_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "003_dream_cycle_result_persistence.py")
     )
+    rev4_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "alembic", "versions", "004_game_import_uniqueness.py")
+    )
     assert os.path.exists(rev1_path), f"Missing Alembic revision 001: {rev1_path}"
     assert os.path.exists(rev2_path), f"Missing Alembic revision 002: {rev2_path}"
     assert os.path.exists(rev3_path), f"Missing Alembic revision 003: {rev3_path}"
+    assert os.path.exists(rev4_path), f"Missing Alembic revision 004: {rev4_path}"
 
     with open(rev1_path, "r", encoding="utf-8") as f:
         c1 = f.read()
@@ -97,6 +119,8 @@ def test_alembic_migration_parity():
         c2 = f.read()
     with open(rev3_path, "r", encoding="utf-8") as f:
         c3 = f.read()
+    with open(rev4_path, "r", encoding="utf-8") as f:
+        c4 = f.read()
 
     assert "001_initial" in c1
     assert "001_initial.sql" in c1
@@ -105,6 +129,9 @@ def test_alembic_migration_parity():
     assert "down_revision: Union[str, None] = '002_evidence_uniqueness'" in c3 or "down_revision = '002_evidence_uniqueness'" in c3
     assert "003_dream_cycle_persistence" in c3
     assert "003_dream_cycle_result_persistence.sql" in c3
+    assert "down_revision: Union[str, None] = '003_dream_cycle_persistence'" in c4 or "down_revision = '003_dream_cycle_persistence'" in c4
+    assert "004_game_import_uniqueness" in c4
+    assert "004_game_import_uniqueness.sql" in c4
 
 
 @pytest.mark.postgres

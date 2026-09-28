@@ -32,7 +32,7 @@ MIN_EVIDENCE_FOR_SCORE = 3
 
 
 def outcome_score(resolved_outcome: Optional[str]) -> float:
-    """Canonical mapping from reasoning outcome to numeric score.
+    """Canonical mapping from reasoning outcome to numeric score for Think First episodes.
     recognized -> 1.0, partial -> 0.5, missed -> 0.0.
     """
     if not resolved_outcome:
@@ -42,19 +42,46 @@ def outcome_score(resolved_outcome: Optional[str]) -> float:
 
 
 def resolve_outcome(record: EvidenceRecord, db: Session) -> Optional[str]:
-    """Resolve reasoning/tactical outcome from the source record (Episode or Position).
-    Evidence records remain primitive pointers; outcomes live on source entities.
-    """
+    """Resolve reasoning outcome for Think First episode records."""
     if record.source_type == "think_first_episode":
         ep = db.query(Episode).filter(Episode.id == record.source_id).first()
         return ep.reasoning_outcome if ep else None
+    return None
+
+
+def resolve_evidence_score(record: EvidenceRecord, db: Session) -> float:
+    """Resolve numeric skill score [0.0..1.0] from the source record.
+
+    Think First evidence:
+      Episode.reasoning_outcome -> "recognized": 1.0, "partial": 0.5, "missed": 0.0
+
+    Imported position evidence:
+      Position.engine["concept_observation"]["score"] -> float [0.0..1.0]
+      (Derived strictly from concept-specific observable predicates;
+       NEVER routed through reasoning outcomes).
+    """
+    if record.source_type == "think_first_episode":
+        ep = db.query(Episode).filter(Episode.id == record.source_id).first()
+        if ep and ep.reasoning_outcome:
+            return outcome_score(ep.reasoning_outcome)
+        return 0.0
     elif record.source_type == "imported_position":
         pos = db.query(Position).filter(Position.id == record.source_id).first()
         if pos:
             engine_dict = pos.engine or {}
-            return engine_dict.get("outcome", "missed")
-        return None
-    return None
+            obs = engine_dict.get("concept_observation")
+            if isinstance(obs, dict) and "score" in obs:
+                try:
+                    return float(obs["score"])
+                except (ValueError, TypeError):
+                    pass
+            if "skill_score" in engine_dict:
+                try:
+                    return float(engine_dict["skill_score"])
+                except (ValueError, TypeError):
+                    pass
+        return 0.0
+    return 0.0
 
 
 def write_evidence_record(
@@ -233,8 +260,8 @@ def update_skill(
             all_imp = [e for e in all_evidence if e.source_type == "imported_position"]
 
             weighted_sum = (
-                sum(outcome_score(resolve_outcome(e, db)) * 1.0 for e in all_tf)
-                + sum(outcome_score(resolve_outcome(e, db)) * 0.5 for e in all_imp)
+                sum(resolve_evidence_score(e, db) * 1.0 for e in all_tf)
+                + sum(resolve_evidence_score(e, db) * 0.5 for e in all_imp)
             )
             weight_sum = (len(all_tf) * 1.0) + (len(all_imp) * 0.5)
 
@@ -254,12 +281,12 @@ def update_skill(
         current_mastery = skill.mastery_score
 
         if thinkfirst:
-            tf_scores = [outcome_score(resolve_outcome(e, db)) for e in thinkfirst]
+            tf_scores = [resolve_evidence_score(e, db) for e in thinkfirst]
             session_score = (sum(tf_scores) / len(tf_scores)) * 100.0
             current_mastery = max(0.0, min(100.0, 0.7 * current_mastery + 0.3 * session_score))
 
         if imported:
-            imp_scores = [outcome_score(resolve_outcome(e, db)) for e in imported]
+            imp_scores = [resolve_evidence_score(e, db) for e in imported]
             import_score = (sum(imp_scores) / len(imp_scores)) * 100.0
             current_mastery = max(0.0, min(100.0, 0.85 * current_mastery + 0.15 * import_score))
 

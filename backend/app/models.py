@@ -69,6 +69,7 @@ class Game(Base):
 
     __table_args__ = (
         CheckConstraint("source IN ('chesscom', 'pgn')", name="chk_game_source"),
+        UniqueConstraint("player_id", "source", "external_ref", name="uq_game_player_source_external_ref"),
     )
 
 
@@ -83,6 +84,10 @@ class Position(Base):
     concept = Column(String, nullable=True, index=True)
     engine = Column(JSON, nullable=False, default=dict)
     observed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("game_id", "move_number", "fen", name="uq_position_game_move_fen"),
+    )
 
 
 class Session(Base):

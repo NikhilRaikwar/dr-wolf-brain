@@ -49,7 +49,8 @@ def setup_database():
 
 from unittest.mock import patch
 from app.chess.stockfish import EvalResult
-from app.routers.session import engine_adapter
+from app.routers.session import engine_adapter as session_engine_adapter
+from app.routers.import_router import engine_adapter as import_engine_adapter
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -62,10 +63,10 @@ def db_session():
 @pytest.fixture(autouse=True)
 def ensure_engine_ready():
     """Ensure engine methods return valid outputs if Stockfish binary is not installed locally."""
-    if not engine_adapter._binary_available:
+    if not session_engine_adapter._binary_available or not import_engine_adapter._binary_available:
         def mock_analyze(fen, depth=None, multipv=1):
             board = chess.Board(fen)
-            if board.is_checkmate():
+            if board.is_game_over() and board.is_checkmate():
                 white_won = (board.turn == chess.BLACK)
                 return EvalResult(
                     best_move="",
@@ -75,13 +76,16 @@ def ensure_engine_ready():
                     pv=[],
                     top_moves=[],
                 )
+            legal = list(board.legal_moves)
+            best_uci = legal[0].uci() if legal else ""
+            best_san = board.san(legal[0]) if legal else ""
             return EvalResult(
-                best_move="",
-                best_move_san="",
+                best_move=best_uci,
+                best_move_san=best_san,
                 eval_white_cp=0,
                 mate_white=None,
-                pv=[],
-                top_moves=[],
+                pv=[best_uci] if best_uci else [],
+                top_moves=[{"move": best_uci, "eval_white_cp": 0}] if best_uci else [],
             )
 
         def mock_choose_move(fen, strength=None):
@@ -89,9 +93,14 @@ def ensure_engine_ready():
             legal = list(b.legal_moves)
             return legal[0].uci() if legal else "e7e5"
 
-        with patch.object(engine_adapter, "choose_training_move", side_effect=mock_choose_move), \
-             patch.object(engine_adapter, "analyze", side_effect=mock_analyze), \
-             patch.object(engine_adapter, "eval_after", return_value=0):
+        with patch.object(session_engine_adapter, "_binary_available", True), \
+             patch.object(import_engine_adapter, "_binary_available", True), \
+             patch.object(session_engine_adapter, "choose_training_move", side_effect=mock_choose_move), \
+             patch.object(session_engine_adapter, "analyze", side_effect=mock_analyze), \
+             patch.object(session_engine_adapter, "eval_after", return_value=0), \
+             patch.object(import_engine_adapter, "choose_training_move", side_effect=mock_choose_move), \
+             patch.object(import_engine_adapter, "analyze", side_effect=mock_analyze), \
+             patch.object(import_engine_adapter, "eval_after", return_value=0):
             yield
     else:
         yield

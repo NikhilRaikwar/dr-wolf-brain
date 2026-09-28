@@ -15,14 +15,59 @@ class PlayerResponse(BaseModel):
 
 # --- import ---
 class ChesscomImportRequest(BaseModel):
+    player_id: UUID
     username: str
-    max_games: int = 30
+    max_games: int = Field(default=10, ge=1, le=50)
+
+class PGNImportRequest(BaseModel):
+    player_id: UUID
+    pgn: str
+    learner_name: Optional[str] = None
+    learner_color: Optional[Literal["white", "black"]] = None
+    max_games: int = Field(default=10, ge=1, le=50)
+
+class ImportFailureItem(BaseModel):
+    game_identifier: str
+    reason: str
 
 class ImportJobResponse(BaseModel):
     player_id: UUID
+    source: str
+    games_found: int
     games_imported: int
+    games_skipped_existing: int
+    games_failed: int = 0
     positions_analyzed: int
-    seeded_hypotheses: List[str]   # hypothesis concepts seeded as 'suspected'
+    evidence_records_created: int
+    seeded_hypotheses: List[str]
+    failures: List[ImportFailureItem] = Field(default_factory=list)
+
+class GameSummaryItem(BaseModel):
+    id: UUID
+    source: str
+    external_ref: Optional[str] = None
+    played_at: Optional[str] = None
+    result: Optional[str] = None
+    positions_count: int = 0
+    created_at: str
+
+class PositionDetailItem(BaseModel):
+    id: UUID
+    move_number: int
+    fen: str
+    concept: Optional[str] = None
+    engine: Dict[str, Any]
+    observed_at: str
+
+class GameDetailResponse(BaseModel):
+    id: UUID
+    player_id: UUID
+    source: str
+    external_ref: Optional[str] = None
+    played_at: Optional[str] = None
+    result: Optional[str] = None
+    created_at: str
+    positions: List[PositionDetailItem]
 
 # --- session ---
 class SessionStartRequest(BaseModel):

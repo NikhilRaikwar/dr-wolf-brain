@@ -21,6 +21,24 @@ The following are the exact registered FastAPI endpoints and HTTP methods from `
 | `GET` | `/api/session/{session_id}/summary` | `session` | Episode grading only on completed session with Stockfish, returns review cards (returns 409 if session still active; never closes sessions). |
 | `POST` | `/api/dream-cycle` | `dream-cycle` | Runs idempotent Dream Cycle belief consolidation (evidence consolidation, skill/hypothesis updates, belief_changes, next_focus, persisted DreamCycleRun). |
 | `GET` | `/api/brain` | `brain` | Aggregates learner profile, skill masteries, hypotheses, focus, citations. Strictly read-only; does not create orphan player rows. |
+| `POST` | `/api/import/chesscom` | `import` | Imports historical games from Chess.com public API, parses PGN, analyzes with bounded Stockfish 18, persists Game/Position, seeds hypotheses, updates skills at 0.5x weight. |
+| `POST` | `/api/import/pgn` | `import` | Imports and validates PGN string/file, analyzes key positions with Stockfish 18, persists Game/Position, seeds hypotheses, updates skills at 0.5x weight. |
+| `GET` | `/api/games` | `games` | Lists real persisted imported games for player with analyzed moment counts. |
+| `GET` | `/api/games/{game_id}` | `games` | Returns game detail and key analyzed positions with Stockfish engine evaluations. |
+
+---
+
+## Canonical Epistemic Architecture
+
+- **Imported games = WHAT happened:** Observes board positions, best moves, centipawn losses, and tactical moments. Stockfish owns chess truth. Imported positions record an objective `skill_score` (`1.0`, `0.5`, `0.0`) and `performance_band` (`"successful"`, `"mixed"`, `"poor"`). They **never** emit reasoning outcomes (`recognized`/`partial`/`missed`).
+- **Think First = WHY the learner made the decision:** Observes learner intent, attention, and cognitive choices through interactive Socratic questioning (`Episode.reasoning_outcome`: `recognized` $\rightarrow 1.0$, `partial` $\rightarrow 0.5$, `missed` $\rightarrow 0.0$).
+
+### Epistemic Rules for Imported Data:
+1. **Skill Evidence:** Contributes reduced weight (`1.0` for Think First, `0.5` for imported positions).
+2. **Skill Score Resolution:** Think First derives from `Episode.reasoning_outcome`; imported games derive from `Position.engine.skill_score` (objective chess facts only).
+3. **Hypothesis Evidence:** Imported positions may **ONLY SEED** hypotheses (`direction = 'seeds'`, `state = 'suspected'`). Seeds do not alter hypothesis confidence, do not increment Think First `observed_count`, and do not promote hypotheses to `developing`/`well_supported`.
+4. **Never Support or Contradict:** Imported positions must **NEVER** write `direction = 'supports'` or `direction = 'contradicts'` for hypotheses (enforced by DB check constraint `no_import_hypothesis_claims`).
+5. **No Synthetic Reasoning:** Imported games never create `Episode` entities or fabricate learner explanations.
 
 ---
 
@@ -40,16 +58,18 @@ The following are the exact registered FastAPI endpoints and HTTP methods from `
 ## Milestone & Product Status
 
 - **REAL LIVE-PLAY PATH:** `IMPLEMENTED` (Full server-authoritative live session loop, deterministic triggers, Socratic interruption modal, Stockfish grading, idempotent manual session finish, and Dream Cycle).
-- **REAL IMPORT PATH:** `NOT IMPLEMENTED YET` (Endpoints `POST /api/import/chesscom` and `POST /api/import/pgn` are not implemented in this pass. `/games` honestly reflects coming-next status).
-- **MILESTONE BLOCKERS:** `NONE` for this canonical-contract pass.
-- **FULL PRD REMAINING WORK:** Implementing the PGN and Chess.com import endpoints (`POST /api/import/chesscom`, `POST /api/import/pgn`) and real `/games` import execution wiring.
+- **REAL IMPORT PATH:** `IMPLEMENTED` (Real Chess.com public API import, real PGN upload/parsing, bounded Stockfish 18 position analysis, Game/Position persistence, deduplication/idempotency, hypothesis seeding, and `/games` interactive UI).
+- **MILESTONE BLOCKERS:** `NONE`.
+- **FULL PRD STATUS:** Core server-authoritative live-play loop and real import pipeline fully implemented and verified.
 
 ---
 
-## Prototype Auth Boundary & Identity Note
+## Prototype Auth Boundary & Claimed-Identity Note
 
+- **Claimed-Identity Boundary:** Chess.com username is a user-supplied public game source, not authenticated account ownership. There is no proof or claim that the local user owns the entered public Chess.com username. The prototype uses public game data without claiming account linking or authentication.
 - **Local Learner Identity:** The player UUID stored in client `localStorage` (`dr_wolf_player_id`) is a prototype local learner identity for v1 single-user/local workflows, **not** production authentication.
-- **Metadata Only:** `chesscom_username` is non-authoritative metadata, not a secure login credential or unique account key.
+- **PGN Learner-Side Attribution Contract:** The Player UUID owns all imported data. In multi-game PGN imports, `learner_name` deterministically attributes which board side represents the learner by case-insensitively matching White and Black headers. Single-game imports additionally support explicit `learner_color = "white" | "black"`. Unmatched or ambiguous games are safely rejected with zero evidence generated.
+- **Multi-Game Transaction Policy (Option B):** Implements per-game savepoint atomicity + factual partial success. Successful games commit; failed games roll back completely; response reports exact `games_found`, `games_imported`, `games_skipped_existing`, `games_failed`, and `failures: [{game_identifier, reason}]`.
 - **No Secure Login Claimed:** The system does not claim multi-user auth, password hashing, or account ownership security in this pass.
 
 ---
@@ -99,7 +119,8 @@ The following are the exact registered FastAPI endpoints and HTTP methods from `
 
 | UI Metric / Field | Authoritative Source | Real Mode Behavior | Initial State |
 | :--- | :--- | :--- | :--- |
-| **Imported Games List** | `sessions` table (where imported) | Real game history rows | Honest empty state with Connect / Upload PGN CTAs |
+| **Imported Games List** | `games` & `positions` tables via `GET /api/games` | Real imported game rows with Stockfish-analyzed moment counts | Honest empty state with Connect / Upload PGN CTAs |
+| **Game Review Moments** | `positions` table via `GET /api/games/{id}` | Real FENs, concepts, and Stockfish engine evaluations | Modal review viewer with objective phrasing |
 
 ---
 

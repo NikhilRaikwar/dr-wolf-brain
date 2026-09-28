@@ -206,10 +206,67 @@
     - Summary replay is idempotent and Dream Cycle runs safely exactly once.
   - **Import Path Status Truthfulness & Remaining Product Scope:**
     - Real Live-Play path is fully implemented.
-    - Real Import path (`POST /api/import/chesscom`, `POST /api/import/pgn`) is not implemented yet, with honest "Coming Next" badges on `/games`.
-    - For this canonical-contract milestone: 0 remaining blockers.
-    - For the full PRD product: remaining work is the import pipeline.
+    - Milestone 8 successfully completed with 0 blockers.
 
+## Milestone 9: Real Import Pipeline & Epistemic Verification
+- **Date:** 2026-09-28
+- **Focus:** Implemented real Chess.com public API import and real PGN import, bounded Stockfish 18 position analysis, idempotent Game/Position persistence, and strict epistemic hypothesis seeding.
+- **Decisions & Implementation:**
+  - **The Epistemic Boundary:**
+    - **Imported Games = WHAT happened:** Board positions, move accuracy, blunders, and engine centipawn swings. Evaluated solely by Stockfish 18 depth. Emits objective `skill_score` (`1.0`, `0.5`, `0.0`) and `performance_band` (`"successful"`, `"mixed"`, `"poor"`). Never creates `Episode` rows or claims reasoning outcomes (`recognized`/`partial`/`missed`).
+    - **Think First = WHY the learner made the decision:** Cognitive choices, mental scanning, and focus captured during live interactive questioning.
+    - **Skill Evidence:** Imported positions contribute reduced-weight evidence (`0.5x` vs `1.0x` for Think First).
+    - **Hypotheses:** Imported positions **ONLY SEED** hypotheses (`direction = 'seeds'`, `state = 'suspected'`). They **NEVER** write `supports` or `contradicts` (guaranteed by DB check constraint `no_import_hypothesis_claims`). Seeds do not alter hypothesis confidence and do not increment Think First `observed_count`.
+  - **`POST /api/import/chesscom`:**
+    - Fetches recent games via Chess.com public monthly archives with rate-limit and User-Agent headers.
+    - Bounded import count (default 10, max 30) with safe error reporting on non-existent users (HTTP 404).
+  - **`POST /api/import/pgn`:**
+    - Parses single or multi-game PGN strings safely with `python-chess`.
+    - Enforces 2MB text limit and rejects malformed content with HTTP 400.
+  - **Bounded Stockfish Analysis:**
+    - Deterministic candidate position selector flags up to 12 critical positions per game (eval swings, blunders, triggers).
+    - Evaluated at `depth=18` using Stockfish with White-relative perspective (`eval_white_cp`, `mate_white`, `best_move`, `pv`).
+    - Fails closed safely with HTTP 503 if Stockfish binary is unavailable, producing zero fabricated data.
+  - **Deduplication & Idempotency:**
+    - Enforced DB-level uniqueness constraint `uq_game_player_source_external_ref` and `uq_position_game_move_fen` via Migration 004 and Alembic revision 004.
+    - Re-importing identical games skips already-persisted records with zero duplicates in `games`, `positions`, or `evidence_records`.
+  - **Frontend `/games` Real Data Integration:**
+    - Replaced all "Coming Next" mock cards with working interactive modals for Chess.com and PGN imports.
+    - Rendered real games table backed by `GET /api/games`.
+    - Added interactive Game Review modal backed by `GET /api/games/{id}` displaying chessboard, key moments, concept badges, and engine-backed facts with objective phrasing.
+  - **PGN Learner-Side Attribution & Claimed-Identity Contract:**
+    - Player UUID owns all imported data. In multi-game PGN imports, `learner_name` deterministically attributes which board side represents the learner by case-insensitively matching White and Black headers.
+    - Single-game imports additionally support explicit `learner_color = "white" | "black"`.
+    - Unmatched or ambiguous games are safely rejected with zero evidence generated.
+    - Chess.com username is documented as a user-supplied public game source, not authenticated account ownership.
+  - **Hard Bounds & Resource Safety:**
+    - Request validation strictly enforces `MIN_IMPORT_GAMES = 1`, `MAX_CHESSCOM_GAMES = 50`.
+    - Archive traversal is hard-bounded by `MAX_ARCHIVES_TO_FETCH = 12` (max 1 year back).
+    - Stockfish depth 18 calls per game are strictly bounded to <= 24 via zero-engine fast tactical preselection.
+  - **Multi-Game Transaction Semantics (Option B: Factual Partial Success):**
+    - Per-game savepoint atomicity: successful games commit, failed games roll back completely.
+    - Response strictly and truthfully reports `games_found`, `games_imported`, `games_skipped_existing`, `games_failed`, and explicit `failures: [{game_identifier, reason}]`.
 
-
+## Milestone 10: Final Concept Predicate-Hardening & Epistemic Import Matrix
+- **Date:** 2026-09-28
+- **Focus:** Complete predicate-hardening pass eliminating false-positive imported skill evidence, removing generic best-move fallbacks, tracking exact tactical target squares, and restricting importable skills to defensible classes.
+- **Decisions & Implementation:**
+  - **Removal of "Best Move" as Tactical Awareness Proof:**
+    - Eliminated generic `played_move == best_move` or `cp_loss <= 15` fallbacks for `tactical_awareness`.
+    - Stockfish best move does not prove tactical awareness unless the move deterministically interacts with the exact validated tactical feature.
+  - **Exact Tactical Target Tracking:**
+    - Evaluator identifies and tracks pre-move tactical target squares (`opp_hanging_targets` and `player_hanging_targets`).
+    - Opponent hanging piece: support is awarded ONLY when the learner's move lands on that exact target square (`move.to_square == target_sq`) with `cp_loss <= 60`. Unrelated best moves elsewhere return `None`.
+    - Own hanging piece: support is awarded ONLY when the learner moves the endangered piece away (`move.from_square == target_sq`), captures an attacker of that piece, blocks the attack, or adds new protection with `cp_loss <= 60`. Unrelated moves elsewhere return `None`.
+  - **King Safety Marked Think-First-Only in v1:**
+    - FEN-only heuristics and generic `cp_loss <= 60` cannot prove defensive intent without reasoning. Marked `king_safety` as strictly Think-First-only in v1 (`evaluate_concept_observation` returns `None`).
+  - **Opponent Threat Detection Hardening:**
+    - Checks: legal moves parrying physical checks with `cp_loss <= 60` receive `opponent_threat_detection` support (`basis: "parried_check"`).
+    - Mate threats: opponent mate threats in <= 4 neutralized with `cp_loss <= 60` receive support (`basis: "neutralized_mate_threat"`). Blundered threats (`cp_loss > 150`) contradict (`basis: "failed_threat_parry"`).
+  - **Final V1 Importable Skill Matrix:**
+    - `tactical_awareness` -> **YES** (Exact target interaction)
+    - `opponent_threat_detection` -> **YES** (Check parry or verified mate neutralization)
+    - `king_safety` -> **NO** (Think-First-only in v1)
+    - `calculation_depth` -> **NO** (Think-First-only in v1)
+    - `endgame_technique` -> **NO** (Think-First-only in v1)
 
