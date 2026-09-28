@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const backendApiUrl = (process.env.BACKEND_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+const backendApiUrl = (process.env.BACKEND_API_URL || 'http://127.0.0.1:8000').trim().replace(/\/$/, '')
 
 const nextConfig = {
   images: {
