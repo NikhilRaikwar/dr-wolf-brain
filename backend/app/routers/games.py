@@ -12,13 +12,16 @@ router = APIRouter(prefix="/api/games", tags=["games"])
 
 @router.get("")
 def list_player_games(
-    player_id: Optional[uuid.UUID] = Query(None),
+    player_id: uuid.UUID = Query(..., description="UUID of the player whose games are listed"),
     limit: int = Query(50, ge=1, le=100),
     db: DBSession = Depends(get_db),
 ) -> List[Dict[str, Any]]:
-    """List imported games for a player with analyzed position count and metadata."""
-    if not player_id:
-        return []
+    """List imported games for a player with analyzed position count and metadata.
+    Requires player_id parameter.
+    """
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
 
     games_raw = (
         db.query(Game)
@@ -62,17 +65,15 @@ def list_player_games(
 @router.get("/{game_id}")
 def get_game_detail(
     game_id: uuid.UUID,
-    player_id: Optional[uuid.UUID] = Query(None),
+    player_id: uuid.UUID = Query(..., description="UUID of the player requesting the game"),
     db: DBSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """Get full details of an imported game including all key analyzed positions.
-    Enforces ownership isolation: if player_id is provided, returns 404 if game belongs to another player.
+    Enforces ownership scoping: returns 404 if game does not exist or belongs to another player.
+    Note: This is data scoping, not authenticated authorization.
     """
-    game = db.query(Game).filter(Game.id == game_id).first()
+    game = db.query(Game).filter(Game.id == game_id, Game.player_id == player_id).first()
     if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    if player_id and game.player_id != player_id:
         raise HTTPException(status_code=404, detail="Game not found")
 
     positions = (

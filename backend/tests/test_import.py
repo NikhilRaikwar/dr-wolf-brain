@@ -1124,7 +1124,7 @@ def test_pgn_dedup_across_different_formatting(client, sample_player, db_session
 
 
 def test_cross_player_game_detail_isolation(client, sample_player, db_session):
-    """Verify Player B cannot inspect or access Player A's imported game details."""
+    """Verify Player B cannot inspect or access Player A's imported game details, and missing player_id returns 422."""
     player_b = Player(
         id=uuid.uuid4(),
         chesscom_username="player_b",
@@ -1147,5 +1147,18 @@ def test_cross_player_game_detail_isolation(client, sample_player, db_session):
     game_a = db_session.query(Game).filter(Game.player_id == sample_player.id).first()
     assert game_a is not None
 
-    resp_leak = client.get(f"/api/games/{game_a.id}?player_id={player_b.id}")
-    assert resp_leak.status_code == 404
+    # Player B accessing Game A -> 404
+    resp_b = client.get(f"/api/games/{game_a.id}?player_id={player_b.id}")
+    assert resp_b.status_code == 404
+
+    # Player A accessing Game A -> 200
+    resp_a = client.get(f"/api/games/{game_a.id}?player_id={sample_player.id}")
+    assert resp_a.status_code == 200
+
+    # Missing player_id query param on detail -> 422
+    resp_no_param = client.get(f"/api/games/{game_a.id}")
+    assert resp_no_param.status_code == 422
+
+    # Missing player_id query param on list -> 422
+    resp_list_no_param = client.get("/api/games")
+    assert resp_list_no_param.status_code == 422

@@ -2,157 +2,163 @@
 
 > An AI chess coach that learns how you think.
 
-Dr. Wolf Brain is an experimental personalized chess coach that goes beyond engine analysis.
+Dr. Wolf Brain is a personalized chess coach that goes beyond standard engine blunder checks.
 
-Instead of only telling you the best move, it runs **Think First** sessions, captures how you reason at key positions, and builds an evidence-backed model of your chess thinking over time.
-
-The core idea:
-
-**Imported games tell the coach what happened.  
-Think First sessions help reveal why the decision happened.**
+Instead of only telling you the best move, it runs **Think First** live sessions, captures how you reason at critical positions, and builds an evidence-backed model of your chess thinking over time.
 
 ---
 
-## Why I’m building this
+## The Core Thesis
 
-Most chess tools are excellent at answering:
-
-> “What was the best move?”
-
-I wanted to explore a different question:
-
-> “Can a chess coach learn how a student thinks — and show the evidence behind what it believes about them?”
-
-Dr. Wolf Brain is my prototype of that idea.
+- **Imported games** observe **WHAT** happened on the board.
+- **Think First sessions** observe **WHY** you made the decision.
+- **The learner model** only makes claims strictly supported by persisted evidence.
 
 ---
 
-## Core Experience
+## Architectural Authority Boundaries
 
-### Think First
+To eliminate hallucinations and maintain strict pedagogical integrity:
 
-Play without an eval bar, hints, or takebacks.
-
-At selected positions, Dr. Wolf asks a Socratic question before you move.
-
-You think, answer, commit to a move, and only see the engine verdict after the game.
-
-### Your Chess Brain
-
-The system builds a learner model from structured evidence:
-
-- skill mastery
-- recurring thinking patterns
-- improvement trends
-- supporting and contradicting episodes
-
-It can also say:
-
-> **Not enough evidence yet.**
-
-### Why Did You Ask Me That?
-
-Every personalized coaching question is inspectable.
-
-Chess claims are grounded in Stockfish.
-
-Learner claims are grounded in stored episode evidence.
-
-The LLM owns language and pedagogy — not truth.
+| Subsystem | Authority Responsibility |
+| :--- | :--- |
+| **Stockfish 16+** | Owns chess truth, objective evaluations, multi-PV candidate lines, and CP losses. |
+| **Persisted Evidence** | Owns learner observations, supporting/contradicting episodes, and position records. |
+| **Deterministic State & Math** | Owns session FEN progression, belief updater (decay, confidence, mastery), and trigger governor. |
+| **LLM (OpenRouter / GPT-4o-mini)** | Owns pedagogical wording and Socratic dialogue framing — never chess truth or state. |
 
 ---
 
-## Architecture
+## Architecture Summary
 
-Games / PGN  
-→ Stockfish Analysis  
-→ Episode Memory  
-→ Learner Model  
-→ LLM Pedagogy  
-→ Dream Cycle  
-→ Personalized Coaching
+```
+   [ Chess.com Public API / PGN ]               [ Live Think First Play ]
+                 │                                         │
+                 ▼                                         ▼
+   Bounded Stockfish Analysis (d=18)             Stockfish Play (d=14) + Trigger Governor
+                 │                                         │
+                 ▼                                         ▼
+   Factual Position Evidence (WHAT)              Socratic Episode Interruption (WHY)
+                 │                                         │
+                 └───────────────┬─────────────────────────┘
+                                 ▼
+                    Deterministic Dream Cycle
+                                 │
+                                 ▼
+                     Learner Belief State
+                                 │
+                                 ▼
+                  Real Brain Learner Dashboard
+```
 
-### Truth boundaries
-
-- **Stockfish** → chess truth
-- **Episode evidence** → learner observations
-- **Deterministic belief engine** → scores and confidence
-- **LLM** → language and pedagogy
-
----
-
-## Current Status
-
-🚧 **Building in public**
-
-Current milestone:
-
-- [x] Product concept
-- [x] PRD
-- [x] Engineering build specification
-- [x] Landing page
-- [ ] Game import
-- [ ] Think First gameplay
-- [ ] Episode memory
-- [ ] Learner model
-- [ ] Session summary
-- [ ] Why Did You Ask Me That?
-- [ ] Public demo
-
-The MVP goal is simple:
-
-> **Play three sessions and watch the coach learn one defensible thing about you.**
+- **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS, Lucide icons.
+- **Backend**: FastAPI (Python 3.12), SQLAlchemy 2.0, Alembic, python-chess.
+- **Persistence**: PostgreSQL 16 (production) / SQLite (isolated local unit tests).
+- **Engine Authority**: Stockfish 16+ binary at `/usr/games/stockfish` (Debian container) or local PATH / override.
 
 ---
 
-## Built in the Open
+## Recruiter / 60-Second Demo Path
 
-This project intentionally keeps the product and engineering decisions public.
-
-- [`PRD.md`](./PRD.md) — product source of truth
-- [`BUILD_SPEC.md`](./BUILD_SPEC.md) — engineering implementation contract
-- [`BUILD_LOG.md`](./BUILD_LOG.md) — day-by-day agentic build log
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — architecture as built
-- [`docs/DECISIONS.md`](./docs/DECISIONS.md) — engineering decisions and trade-offs
-
----
-
-## Stack
-
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-- FastAPI
-- PostgreSQL
-- python-chess
-- Stockfish
-- LangGraph
-- OpenRouter
-- Pydantic structured outputs
+1. **Onboarding / Landing**:
+   - Visit `/` and select **Continue as Learner**.
+   - A real player profile is initialized (`POST /api/player`).
+2. **Real Brain Dashboard (Honest Zero-Data State)**:
+   - Visit `/brain`. Notice that all concepts state *"Not enough evidence yet"*. Zero fabricated data.
+3. **Live Think First Session**:
+   - Go to `/play` and play moves.
+   - At tactical or developmental tension, Dr. Wolf pauses the eval and poses a Socratic question (*"What is your plan here?"*).
+   - Answer the prompt, commit the move, and finish the session.
+4. **Post-Session Review**:
+   - Inspect the game review showing where *Right Move != Right Reasoning*.
+   - Trigger the **Dream Cycle** to synthesize session evidence into persistent learner beliefs.
+5. **Why Did You Ask Me That?**:
+   - Inspect the provenance card in the dashboard to see exact historical evidence justifying the coach's inquiry.
+6. **Import Real Games**:
+   - Go to `/games` and import via Chess.com public username or PGN text.
+   - Stockfish evaluates positions bounded to $\le 12$ critical positions per game at depth 18 ($\le 24$ engine calls/game). Factual move quality evidence updates the learner profile without inventing reasoning claims.
 
 ---
 
-## AI-assisted development
+## Game Import & Epistemic Boundaries
 
-I use agentic coding tools heavily while building this project.
+- **Chess.com Public Import**:
+  - `MAX_CHESSCOM_GAMES = 50`
+  - `MAX_ARCHIVES_TO_FETCH = 12`
+  - `MAX_POSITIONS_PER_GAME = 12`
+  - Bounded Stockfish analysis at depth 18 ($\le 24$ calls/game).
+- **Attribution & Deduplication**:
+  - Deterministic player side attribution (color matching or learner name).
+  - Migration 004 unique constraints: `uq_game_player_source_external_ref` on `(player_id, source, external_ref)` and `uq_position_game_move_fen` on `(game_id, move_number, fen)`.
+  - Duplicate imports are safely skipped with zero duplicated positions or evidence records.
 
-AI accelerates implementation, but I own:
+---
 
-- architecture
-- trust boundaries
-- deterministic vs model responsibilities
-- state transitions
-- testing strategy
-- security constraints
-- product decisions
+## Local Development Setup
 
-`BUILD_LOG.md` records where agents helped and where I changed or rejected their suggestions.
+### 1. Requirements
+- Node.js 20+ & pnpm / npm
+- Python 3.12+
+- Stockfish binary installed and available in PATH (or configured via `STOCKFISH_PATH`)
+- Docker (for local PostgreSQL instance)
+
+### 2. Backend Setup
+```bash
+# Start PostgreSQL
+docker-compose up -d
+
+# Create virtual environment & install dependencies
+cd backend
+python -m venv venv
+# On Windows: venv\Scripts\activate | On Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+
+# Run migrations
+alembic upgrade head
+
+# Start FastAPI server
+uvicorn app.main:app --reload --port 8000
+```
+
+### 3. Frontend Setup
+```bash
+# In the root directory:
+npm install
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
+
+## Required Environment Variables
+
+| Variable | Target | Purpose | Production Source |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` | Backend | PostgreSQL connection string | Managed PostgreSQL (Railway / Supabase / RDS) |
+| `STOCKFISH_PATH` | Backend | Path to executable Stockfish binary | Path in container (e.g. `/usr/games/stockfish` or `stockfish`) |
+| `OPENROUTER_API_KEY` | Backend | OpenRouter API Key for Socratic LLM wording | OpenRouter Secret Key |
+| `OPENROUTER_MODEL` | Backend | LLM model identifier | e.g. `openai/gpt-4o-mini` |
+| `CORS_ORIGINS` | Backend | Allowed CORS origins | Frontend deployment URL (e.g. `https://dr-wolf-brain.vercel.app`) |
+| `BACKEND_API_URL` | Frontend | Backend origin URL for Next.js API route proxying | Backend deployment origin (e.g. `https://dr-wolf-api.up.railway.app`) |
+
+---
+
+## Security & Prototype Identity Boundaries
+
+> **Prototype Data Scoping**: Player UUID (`player_id`) provides local data scoping across database queries. It does **not** provide authenticated account ownership or authorization against a user who knows or submits another player's UUID. Full production authentication (OAuth / JWT) remains future work.
+
+---
+
+## Verification & Test Suite
+
+- **Pytest (Backend)**: 155 unit tests + 5 PostgreSQL concurrency tests in CI.
+- **TypeScript**: `npm run typecheck` passes with zero errors.
+- **Chess Example Verifier**: `npm run verify:chess` validates all landing mockups and FENs.
+- **Production Build**: `npm run build` succeeds cleanly.
 
 ---
 
 ## Status
 
-This is an independent prototype exploring personalized chess learning.
+Independent research prototype exploring evidence-based personalized chess pedagogy. Not an official Chess.com product.
 
-It is not an official Chess.com product.

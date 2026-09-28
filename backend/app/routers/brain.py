@@ -43,26 +43,18 @@ STATE_LABELS: Dict[str, str] = {
 
 @router.get("")
 def get_brain_dashboard(
-    player_id: Optional[uuid.UUID] = Query(None),
+    player_id: uuid.UUID = Query(..., description="UUID of the player whose brain dashboard is requested"),
     db: DBSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Read-only aggregator for Dr. Wolf Brain learner model dashboard.
     Strictly read-only: does not mutate beliefs, evidence, or session state.
+    Requires player_id parameter. Returns 404 if player does not exist.
     """
-    # 1. Resolve player
-    player = None
-    if player_id:
-        player = db.query(Player).filter(Player.id == player_id).first()
-        if not player:
-            raise HTTPException(status_code=404, detail="Player not found")
-    else:
-        player = db.query(Player).order_by(desc(Player.created_at)).first()
-        if not player:
-            raise HTTPException(
-                status_code=404,
-                detail="No player found. Please complete learner setup first.",
-            )
+    # 1. Resolve player (explicit scoping only - no fallback to latest player)
+    player = db.query(Player).filter(Player.id == player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
 
     resolved_player_id = player.id
 

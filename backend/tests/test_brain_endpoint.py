@@ -3,18 +3,23 @@ import uuid
 from app.models import Player, Skill, Hypothesis, BeliefChange, Session, Episode, EvidenceRecord, DreamCycleRun
 
 def test_brain_endpoint_empty_db(client):
-    """Test /api/brain returns 404 when no player exists, and honest empty shape when fresh player is created."""
-    # 1. No player exists -> must return 404 (no implicit orphan player creation)
-    res_empty = client.get("/api/brain")
-    assert res_empty.status_code == 404
-    assert "No player found" in res_empty.json()["detail"]
+    """Test /api/brain returns 422 when player_id query param is missing, and honest empty shape when fresh player is created."""
+    # 1. Missing player_id parameter -> must return 422 (validation error, never fallback to another player)
+    res_missing = client.get("/api/brain")
+    assert res_missing.status_code == 422
 
-    # 2. Explicitly create player
+    # 2. Non-existent player_id -> returns 404
+    fake_id = uuid.uuid4()
+    res_not_found = client.get(f"/api/brain?player_id={fake_id}")
+    assert res_not_found.status_code == 404
+    assert "Player not found" in res_not_found.json()["detail"]
+
+    # 3. Explicitly create player
     create_res = client.post("/api/player", json={})
     assert create_res.status_code == 201
     player_id = create_res.json()["id"]
 
-    # 3. Query brain for that player -> returns honest empty learner state
+    # 4. Query brain for that player -> returns honest empty learner state
     res = client.get(f"/api/brain?player_id={player_id}")
     assert res.status_code == 200
     data = res.json()
@@ -34,6 +39,32 @@ def test_brain_endpoint_empty_db(client):
     # 3 canonical hypotheses must be present
     assert len(data["hypotheses"]) == 3
     assert all(h["consumer_state"] in ("Needs evidence", "Developing", "Well-supported") for h in data["hypotheses"])
+
+
+def test_brain_endpoint_no_data_leak_on_missing_param(client, db_session):
+    """Regression test: Player A exists with populated data. Calling /api/brain without player_id must return 422 and never leak Player A's data."""
+    player_a = Player(estimated_rating=1500, chesscom_username="secret_grandmaster")
+    db_session.add(player_a)
+    db_session.commit()
+
+    skill = Skill(
+        player_id=player_a.id,
+        concept="tactical_awareness",
+        mastery_score=95.0,
+        evidence_count=20,
+        trend="improving",
+    )
+    db_session.add(skill)
+    db_session.commit()
+
+    # Request without player_id
+    res = client.get("/api/brain")
+    assert res.status_code == 422
+    # Verify response body contains 0 data about Player A
+    res_text = res.text
+    assert "secret_grandmaster" not in res_text
+    assert "95.0" not in res_text
+    assert str(player_a.id) not in res_text
 
 
 def test_brain_endpoint_with_populated_data(client, db_session):

@@ -274,7 +274,8 @@ function GamesContent() {
     setLoadingDetail(true)
     setSelectedPositionIndex(0)
     try {
-      const res = await fetch(`/api/games/${gameId}`)
+      const queryParam = playerId ? `?player_id=${playerId}` : ''
+      const res = await fetch(`/api/games/${gameId}${queryParam}`)
       if (res.ok) {
         const detail: GameDetail = await res.json()
         setSelectedGameDetail(detail)
