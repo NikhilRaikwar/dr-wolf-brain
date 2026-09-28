@@ -30,3 +30,4 @@ backend/stockfish_bin/
 *.sqlite
 *.sqlite3
 temp/
+.vercel
