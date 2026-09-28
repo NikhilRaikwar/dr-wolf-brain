@@ -30,7 +30,7 @@ A standard chess engine can easily spot a blunder, but the same mistake can stem
 3. **Execution Failure**: *I understood the strategic goal, but chose the wrong move order.*
 4. **False Positive / Fluke**: *I played the engine-approved move for completely the wrong reason.*
 
-A traditional chess bot treats all four learners identically: by showing the engine eval and the computer line. But these learners need completely different coaching interventions.
+A move-quality engine review can assign the same objective result to learners who arrived there for very different reasons. But these learners need completely different coaching interventions.
 
 ### The Product Bet
 Instead of prompting an LLM to generate generic chess advice, **Dr. Wolf Brain** explores whether a coach can build a durable, evidence-backed model of how a student reasons over time.
@@ -49,13 +49,14 @@ How learner actions translate into durable coaching intelligence:
 
 ```mermaid
 flowchart LR
-    A[Play / Import Games] --> B[Observe WHAT Happened]
-    B --> C[Think First Moment]
-    C --> D[Capture WHY Learner Chose Move]
-    D --> E[Evidence Store]
-    E --> F[Evidence-Backed Learner Model]
-    F --> G[Targeted Coaching Interventions]
-    G -. "Why did you ask me that?" .-> E
+    A[Imported Games] --> B[Observe WHAT Happened]
+    C[Live Play] --> D[Think First Moments]
+    D --> E[Capture WHY Learner Chose Move]
+    B --> F[Evidence Store]
+    E --> F
+    F --> G[Evidence-Backed Learner Model]
+    G --> H[Targeted Coaching Interventions]
+    H -. "Why did you ask me that?" .-> F
 ```
 
 ### 2. Architectural Authority & Trust Boundaries
@@ -124,7 +125,7 @@ stateDiagram-v2
 | ✅ Think First interruption governor | ⏳ "Victory Lap" positive reinforcement episodes | ❌ Full Chess.com platform clone |
 | ✅ Factual PGN & Chess.com game import | ⏳ Personalized puzzle generation from user blunders | ❌ Vector-heavy ungrounded RAG |
 | ✅ Deterministic Dream Cycle updater | ⏳ Voice/audio coaching interface | ❌ Arbitrary LLM model fine-tuning |
-| ✅ Real Brain Dashboard with 100% provenance | ⏳ Classroom / Teacher review dashboard | ❌ Opening repertoire memorization trees |
+| ✅ Evidence-backed Brain Dashboard with inspectable provenance | ⏳ Classroom / Teacher review dashboard | ❌ Opening repertoire memorization trees |
 | ✅ Isolated player scoping & test suite | ⏳ Structured user research loop | ❌ Paywalls & monetization mechanics |
 
 ---
@@ -133,13 +134,13 @@ stateDiagram-v2
 
 If deploying this in a live product environment, these metrics would validate whether Dr. Wolf Brain is driving authentic learning:
 
-| Learning & Product Question | Primary Metric | Target Signal |
+| Learning & Product Question | Primary Metric | Initial Hypothesis / Target to Validate |
 | :--- | :--- | :--- |
-| **Does Think First capture genuine learner intent?** | `% prompted episodes with gradable evidence` | $>85\%$ completion rate without abandonment |
+| **Does Think First capture genuine learner intent?** | `% prompted episodes with gradable evidence` | $>85\%$ completion rate without abandonment *(hypothetical initial target)* |
 | **Is coaching personalization improving?** | `Learner-rated relevance of Socratic questions` | Upward trend across 5+ completed sessions |
 | **Is the coach building trust?** | `"Why did you ask me that?" modal engagement` | High initial open rate transitioning to trust |
 | **Are learners building a habit?** | `D1 / D7 learning session retention` | Higher return rate vs static engine review |
-| **Is interruption friction acceptable?** | `Session drop-off rate at Think First prompt` | $<5\%$ early exit during prompted state |
+| **Is interruption friction acceptable?** | `Session drop-off rate at Think First prompt` | $<5\%$ early exit during prompted state *(hypothetical guardrail)* |
 | **Is coaching transferring to live games?** | `Repeated concept success rate on unseen FENs` | Measurable reduction in recurring blunder types |
 
 ---
@@ -157,10 +158,10 @@ Dr. Wolf Brain is an independent research prototype. The next critical step is s
 
 ## ⚡ AI-Native Builder Approach
 
-This project was built using agentic coding workflows (Gemini / Claude / Cursor) as high-leverage implementation multipliers.
+This project was built using agentic coding workflows (Claude Code, OpenAI Codex, Cursor, and Gemini / Antigravity) as high-leverage implementation multipliers.
 
 - **AI as Force Multiplier**: Accelerated boilerplate generation, TypeScript definitions, Pytest test cases, and Docker containerization.
-- **Human Product & Engineering Ownership**: Retained 100% human authority over product framing, epistemic trust boundaries, deterministic scoring formulas, and validation suites.
+- **Human Product & Engineering Ownership**: I retained ownership of product decisions, architecture, trust boundaries, testing, and deployment.
 - **Strict Separation of Concerns**: AI tools were never permitted to invent arbitrary game state, bypass chess rules, or write subjective learner claims without deterministic evidence backing.
 
 ---
@@ -169,11 +170,11 @@ This project was built using agentic coding workflows (Gemini / Claude / Cursor)
 
 For a comprehensive review of the design choices and specifications behind Dr. Wolf Brain:
 
-- **Product Requirements & Scope**: [`PRD.md`](file:///d:/New%20folder/dr-wolf-brain-landing-page/PRD.md)
-- **Engineering Contract & Architecture**: [`BUILD_SPEC.md`](file:///d:/New%20folder/dr-wolf-brain-landing-page/BUILD_SPEC.md)
-- **Architectural Tradeoffs & Decision Log**: [`docs/DECISIONS.md`](file:///d:/New%20folder/dr-wolf-brain-landing-page/docs/DECISIONS.md)
-- **Dashboard Evidence Authority Contract**: [`DASHBOARD_DATA_AUTHORITY.md`](file:///d:/New%20folder/dr-wolf-brain-landing-page/DASHBOARD_DATA_AUTHORITY.md)
-- **Chronological Engineering Log**: [`BUILD_LOG.md`](file:///d:/New%20folder/dr-wolf-brain-landing-page/BUILD_LOG.md)
+- **Product Requirements & Scope**: [`PRD.md`](./PRD.md)
+- **Engineering Contract & Architecture**: [`BUILD_SPEC.md`](./BUILD_SPEC.md)
+- **Architectural Tradeoffs & Decision Log**: [`docs/DECISIONS.md`](./docs/DECISIONS.md)
+- **Dashboard Evidence Authority Contract**: [`DASHBOARD_DATA_AUTHORITY.md`](./DASHBOARD_DATA_AUTHORITY.md)
+- **Chronological Engineering Log**: [`BUILD_LOG.md`](./BUILD_LOG.md)
 
 ---
 
@@ -183,13 +184,13 @@ For a comprehensive review of the design choices and specifications behind Dr. W
    - Open [`https://dr-wolf-brain.vercel.app`](https://dr-wolf-brain.vercel.app) and select **Continue as Learner**.
    - A server-authoritative player profile is created in PostgreSQL (`POST /api/player`).
 2. **Inspect Zero-Data State**:
-   - Navigate to `/brain`. Verify that all concept cards honestly show *"Not enough evidence yet"* and hypotheses remain unseeded.
+   - Navigate to `/brain`. Verify that all concept cards honestly show *"Not enough evidence yet"* and hypotheses remain unconfirmed and need evidence.
 3. **Import Factual Games**:
    - Go to `/games` and paste a PGN (e.g. `1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 1-0`).
    - Stockfish evaluates positions bounded to $\le 12$ critical moves at depth 18. Factual move accuracy updates without inventing cognitive claims.
 4. **Live Play & Think First**:
    - Go to `/play` and play against Stockfish.
-   - At critical tactical/strategic junctions past move 8, Think First pauses the clock to capture reasoning before executing the move.
+   - Past move 8, the interruption governor may trigger Think First when its tactical/strategic evidence conditions are met to capture reasoning before executing the move.
 5. **Synthesize via Dream Cycle**:
    - Finish the game and run the **Dream Cycle** (`POST /api/dream-cycle`) to synthesize session observations into persistent beliefs and next coaching priorities.
 
@@ -225,7 +226,7 @@ pnpm run dev
 
 ## 🧪 Verification & Test Suite
 
-- **Pytest (Backend)**: 155 unit tests locally + 5 PostgreSQL concurrency tests in CI (**160/160 passing**).
+- **Pytest (Backend)**: 155 tests pass locally with 5 PostgreSQL-dependent tests skipped; all 160 pass in CI against PostgreSQL 16.
 - **TypeScript**: Strict typecheck (`pnpm run typecheck`) and Next.js production build (`pnpm run build`) passing with 0 errors across 14 static routes.
 - **Chess Example Verifier**: `pnpm run verify:chess` validates all landing mockups and FEN legality.
 - **CI Pipeline**: Automated GitHub Actions running PostgreSQL 16 service, Stockfish, Alembic migrations, Pytest, and Next.js builds.
