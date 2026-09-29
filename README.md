@@ -138,7 +138,7 @@ If deploying this in a live product environment, these metrics would validate wh
 | :--- | :--- | :--- |
 | **Does Think First capture genuine learner intent?** | `% prompted episodes with gradable evidence` | $>85\%$ completion rate without abandonment *(hypothetical initial target)* |
 | **Is coaching personalization improving?** | `Learner-rated relevance of Socratic questions` | Upward trend across 5+ completed sessions |
-| **Is the coach building trust?** | `"Why did you ask me that?" modal engagement` | High initial open rate transitioning to trust |
+| **Is the coach building trust?** | `Learner understanding of Brain evidence and provenance` | Learners can explain which evidence supports a coaching claim |
 | **Are learners building a habit?** | `D1 / D7 learning session retention` | Higher return rate vs static engine review |
 | **Is interruption friction acceptable?** | `Session drop-off rate at Think First prompt` | $<5\%$ early exit during prompted state *(hypothetical guardrail)* |
 | **Is coaching transferring to live games?** | `Repeated concept success rate on unseen FENs` | Measurable reduction in recurring blunder types |

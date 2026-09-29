@@ -294,6 +294,17 @@ export default function PlayPage() {
       ? `Stockfish (${session.effective_engine_elo} Elo)`
       : 'Training Engine'
 
+  const completedSessionCopy =
+    session?.result === '1-0'
+      ? 'Well played! Checkmate — you won this game.'
+      : session?.result === '0-1'
+        ? 'Checkmate. A great learning game.'
+        : session?.result === '1/2-1/2'
+          ? 'The game concluded in a draw.'
+          : 'Session finished. Review your learning moments below.'
+
+  const completedSessionLabel = session?.result ? `Game Over · ${session.result}` : 'Session Complete'
+
   return (
     <main className="min-h-screen bg-[#f6eedb] text-[#361d14] flex flex-col">
       {/* 1. Header Bar */}
@@ -474,13 +485,7 @@ export default function PlayPage() {
                       ) : justAnsweredPrompt ? (
                         'Good reflection. Now make your move on the board.'
                       ) : session?.game_over ? (
-                        session.result === '1-0' ? (
-                          'Well played! Checkmate — you won this game.'
-                        ) : session.result === '0-1' ? (
-                          'Checkmate. A great learning game.'
-                        ) : (
-                          'The game concluded in a draw.'
-                        )
+                        completedSessionCopy
                       ) : session?.ply_count === 0 ? (
                         'Make your opening move. Take your time to consider pawn structure and piece activity.'
                       ) : (
@@ -541,7 +546,7 @@ export default function PlayPage() {
                   <div className="mt-3 bg-[#e8f1dd] border border-[#b4d498] rounded-[6px] p-3 text-center">
                     <div className="flex items-center justify-center gap-2 text-[#3b661e] font-serif-custom font-bold text-[14px]">
                       <CheckCircle2 size={16} />
-                      <span>Game Over · {session.result}</span>
+                      <span>{completedSessionLabel}</span>
                     </div>
                   </div>
                 )}

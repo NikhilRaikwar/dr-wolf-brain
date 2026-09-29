@@ -1,7 +1,9 @@
 # Dr. Wolf Brain — Engineering Build Spec
 
-**Version:** 1.1 · **Date:** 2026-09-26 · **Companion to:** PRD v1.4 FINAL (frozen)
-**Purpose:** everything a coding agent needs to implement the v1 demo spine with no product decisions left open. If a decision isn't in here or the PRD, it goes to the human — the agent does not invent product.
+**Version:** 1.2 · **Date:** 2026-09-29 · **Companion to:** PRD v1.5
+**Purpose:** original engineering specification plus an explicit record of what the shipped v1 replaced or deferred. Normative learner-model formulas, evidence rules, hypothesis rules, and governor gates remain unchanged.
+
+> **Shipped-state note (2026-09-29):** This document began as a build plan. Sections marked replaced, deferred, or post-MVP describe unshipped designs and must not be read as current interfaces. Current code and migrations remain authoritative.
 
 **v1.1 engineering freeze:** fixed evaluation-perspective normalization, canonical server-side game/session state, staged episode lifecycle, Stockfish Elo-floor fallback, weighted mastery initialization, hypothesis-state logic, hypothesis-test predicates, client/server trigger authority, seeded-hypothesis visibility, and Dream Cycle idempotency.
 
@@ -15,7 +17,7 @@
    - Any code path where the LLM output flows into a belief update or a chess claim without a deterministic check is a bug. Flag it, don't ship it.
 3. **No new product features.** The PRD is frozen. Ambiguity → ask the human, default to the simpler option.
 4. **Every commit must keep the app runnable.** Small vertical slices, not layer-by-layer.
-5. **Write `BUILD_LOG.md` as you go:** what you built, what you chose, where you were uncertain. This file is part of the job application.
+5. **Write `BUILD_LOG.md` as you go:** what was built, what was chosen, and where human judgment intervened. It is a public record of the agentic workflow.
 
 ## 1. Repo layout & setup
 
@@ -35,10 +37,9 @@ dr-wolf-brain/
 │   │   ├── models.py           # ORM models (mirror §2 tables)
 │   │   ├── schemas.py          # Pydantic request/response models (§4)
 │   │   ├── routers/
-│   │   │   ├── import_.py      # POST /api/import/chesscom, POST /api/import/pgn
+│   │   │   ├── import_router.py # POST /api/import/chesscom, POST /api/import/pgn
 │   │   │   ├── session.py      # session start/answer/move/summary
-│   │   │   ├── brain.py        # GET /api/brain, GET /api/evidence/{claim_id}
-│   │   │   ├── path.py         # GET /api/path
+│   │   │   ├── brain.py        # GET /api/brain aggregate learner state + provenance
 │   │   │   └── dream.py        # POST /api/dream-cycle
 │   │   ├── chess/
 │   │   │   ├── stockfish.py    # StockfishAdapter (§5)
@@ -58,23 +59,16 @@ dr-wolf-brain/
 │   ├── seed/
 │   │   └── transfer_positions.sql  # §12 (starter FENs)
 │   └── tests/                  # §13
-├── frontend/                     # Next.js
-│   ├── app/
+├── app/                          # Next.js App Router
 │   │   ├── page.tsx            # landing + import (Chess.com username / PGN)
 │   │   ├── play/page.tsx       # Think First game
-│   │   ├── session/[id]/page.tsx  # Session Summary (post-game reveal)
 │   │   ├── brain/page.tsx      # Your Chess Brain dashboard
-│   │   └── path/page.tsx       # Learning Path (thin v1)
-│   ├── components/
-│   │   ├── Board.tsx           # react-chessboard wrapper
+│   │   └── games/              # Game list and detail surfaces
+├── components/
+│   │   ├── Chessboard.tsx      # custom display board
+│   │   ├── InteractiveChessboard.tsx # custom interactive board
 │   │   ├── SocraticModal.tsx   # interruption: question + options + squares + text
-│   │   ├── WhyAsk.tsx          # "Why did you ask me that?" panel
-│   │   ├── BrainDashboard.tsx
-│   │   ├── SessionSummary.tsx
-│   │   └── SkillCard.tsx
-│   └── lib/
-│       ├── chess.ts            # chess.js helpers
-│       └── stockfish-wasm.ts   # client-side engine for live trigger UX (§5.4)
+├── lib/                         # frontend helpers and landing examples
 └── docs/
     ├── ARCHITECTURE.md
     └── DECISIONS.md
@@ -87,7 +81,8 @@ cp .env.example .env                     # DATABASE_URL, OPENROUTER_API_KEY, STO
 psql $DATABASE_URL -f backend/migrations/001_initial.sql
 psql $DATABASE_URL -f backend/seed/transfer_positions.sql
 cd backend && uvicorn app.main:app --reload      # :8000
-cd frontend && npm run dev                        # :3000
+pnpm install --frozen-lockfile
+pnpm run dev                                      # :3000
 ```
 
 `.env.example`:
@@ -420,17 +415,17 @@ class PathResponse(BaseModel):
 | Method & path | Request | Response | Notes |
 |---|---|---|---|
 | `POST /api/import/chesscom` | `ChesscomImportRequest` | `ImportJobResponse` | Fetch monthly archives from `https://api.chess.com/pub/player/{user}/games/{yyyy}/{mm}`. Filter: standard time controls, rated+casual. Cap `max_games`. Analyze each game's critical positions server-side (§6). |
-| `POST /api/import/pgn` | multipart `file` | `ImportJobResponse` | Parse with python-chess. Same analysis path as chesscom. |
+| `POST /api/import/pgn` | JSON `{player_id, pgn}` | `ImportJobResponse` | **Replaced in shipped v1:** PGN text is submitted as JSON and parsed with python-chess. Multipart upload is deferred. |
 | `POST /api/session/start` | `SessionStartRequest` | `SessionStartResponse` | Creates canonical server-side session state. `requested_engine_elo = rating + 100`; actual engine mode follows §6.1 Elo-floor policy. |
 | `GET /api/session/{id}/position` | — | `{fen, turn, legal_moves, interruption: EpisodeResponse | null}` | Reads canonical DB-backed session state. No in-memory-only board authority. |
 | `POST /api/session/{id}/interrupt/{episode_id}/answer` | `ReasoningAnswer` | `{ok: true}` | Requires episode `status='prompted'`; stores `learner_reasoning`, advances to `answered`. Does NOT grade yet. |
 | `POST /api/session/{id}/move` | `MoveRequest` | `MoveResponse` | Client sends the player's move only. Server validates/applies it, chooses/applies the canonical engine reply, persists `current_fen` + `moves_uci`, runs the canonical trigger pipeline, creates any `prompted` episode, and returns the resulting state. |
 | `GET /api/session/{id}/summary` | — | `SessionSummaryResponse` | Grades all `committed` episodes (server Stockfish = authority), runs the idempotent Dream Cycle once, returns review cards, then marks the session completed. |
 | `GET /api/brain?player_id=` | — | `BrainResponse` | Skills + hypotheses. Pure imported seeds are visible in a clearly separate **Possible pattern — based on imported games, not yet tested** section. They are never displayed as confirmed learner claims. After Think First tests begin, they move into the normal hypothesis state UI. |
-| `GET /api/evidence/{claim_id}?claim_type=` | — | `list[EvidenceItem]` | Provenance read for the Why UI. `claim_id` = skill or hypothesis id. |
-| `GET /api/session/{id}/why/{episode_n}` | — | `WhyAskResponse` | Narrative built from the trigger's hypothesis evidence (deterministic template), phrased by LLM. |
+| `GET /api/evidence/{claim_id}?claim_type=` | — | `list[EvidenceItem]` | **Deferred.** Shipped v1 exposes aggregate persisted provenance through `GET /api/brain`; it does not provide this claim-specific route. |
+| `GET /api/session/{id}/why/{episode_n}` | — | `WhyAskResponse` | **Deferred.** The dedicated episode-level “Why did you ask me that?” route and UI are not shipped. Persisted episodes and aggregate Brain provenance are the current foundation. |
 | `POST /api/dream-cycle` | `{session_id}` | `{beliefs_changed: int}` | Runs §9. Called once at session end (by the summary endpoint or a job). Idempotent per session. |
-| `GET /api/path?player_id=` | — | `PathResponse` | Thin v1: current focus = weakest skill by mastery; 3 transfer FENs by concept+difficulty. |
+| `GET /api/path?player_id=` | — | `PathResponse` | **Deferred.** Shipped v1 has no dedicated learning-path API or complete transfer-training flow. |
 
 **Import analysis (shared by chesscom/pgn):** for each game, walk the moves with server Stockfish at `ENGINE_DEPTH_IMPORT`. Record a `positions` row for every position where: eval swing > 150cp on a move (critical moment), a tactic was available and missed/taken, or king-safety event. Each row gets `concept` + `engine` JSON. Then write `evidence_records` with `source_type='imported_position'`, `claim_type='skill'`, `direction='supports'|'contradicts'` at the updater's half rate. Also seed candidate hypotheses (`claim_type='hypothesis'`, `direction='seeds'`) for concepts with ≥2 supporting positions.
 
@@ -576,8 +571,10 @@ Rules: exactly 4 options per trigger; the *correct* concept's option is always p
 
 ### 6.6 Live-trigger UX vs server authority (§5.4)
 
+**Shipped v1:** Stockfish runs server-side. The browser renders the canonical state returned by the API and does not run Stockfish WASM. The speculative browser-engine design below was superseded before implementation; server confirmation remains the only trigger authority.
+
 - **Server is the only authority that may create a coaching interruption.**
-- Frontend Stockfish WASM may precompute likely engine replies / likely trigger candidates for responsiveness, but the Socratic modal must not open until the backend confirms and persists a canonical `prompted` episode.
+- The original plan allowed frontend Stockfish WASM to precompute likely replies or triggers. This is **not shipped**. The Socratic modal opens only after the backend confirms and persists a canonical `prompted` episode.
 - Canonical turn flow:
   1. Client sends **player move only** to `POST /api/session/{id}/move`.
   2. Server loads `sessions.current_fen`, validates and applies the player move.
@@ -768,11 +765,13 @@ You are Dr. Wolf's wording assistant. STRICT RULES:
 
 ## 11. Frontend
 
+**Shipped v1 note:** The frontend is the repository-root Next.js application. It uses custom `Chessboard.tsx` and `InteractiveChessboard.tsx` components with chess.js. `react-chessboard`, `WhyAsk.tsx`, a separate session-summary route, and browser Stockfish WASM were planned designs and are not shipped. Summary review is rendered from the Play flow; aggregate provenance is rendered through the Brain surfaces.
+
 **State flow (Think First game):**
 ```
 page.tsx: player_id in localStorage (passwordless v1)
   → POST /session/start → session_id, engine mode, canonical starting FEN
-  → Board.tsx renders server FEN
+  → InteractiveChessboard.tsx renders server FEN
   → player makes a move locally for immediate UX
   → POST /session/{id}/move {move_uci: player_move}
       server validates + applies player move
@@ -788,7 +787,7 @@ page.tsx: player_id in localStorage (passwordless v1)
       no grade shown
   → user commits next player move through the same /move endpoint
       if it belongs to the answered episode: episode status → committed
-  → game ends → session/[id]/page.tsx → GET /summary
+  → game ends or is manually finished → Play summary UI → GET /summary
       grades committed episodes
       runs idempotent Dream Cycle
       episode status → graded
@@ -796,15 +795,14 @@ page.tsx: player_id in localStorage (passwordless v1)
 ```
 
 **Components:**
-- `Board.tsx` — react-chessboard wrapper. Props: `fen`, `onMove(uci)`, `orientation`, `highlightSquares`, `selectableSquares`. No eval bar. No arrows. Ever.
+- `Chessboard.tsx` and `InteractiveChessboard.tsx` — shipped custom boards. The interactive board submits learner moves and reconciles to server FEN. No eval bar or authoritative browser engine output.
 - `SocraticModal.tsx` — interruption UI: the question, 4 shuffled options (radio), click-to-highlight squares on a mini board, optional free text, "Commit & play" button. After answering, the main board re-enables for the move.
-- `WhyAsk.tsx` — one click from any interruption or review card → `GET /api/session/{id}/why/{n}` → narrative + evidence list (each item links to the position/episode).
-- `BrainDashboard.tsx` — skills (mastery % or "Not enough evidence"), hypotheses as state pills (Well-supported / Developing / Needs more evidence), evidence sources block, per-skill timeline (from `belief_changes`).
-- `SessionSummary.tsx` — stats, skill deltas with evidence citations, takeaway, review cards.
+- Dedicated `WhyAsk.tsx` and episode-level provenance navigation are **deferred**. Shipped Brain components expose aggregate skill, hypothesis, evidence-source, and belief-change information.
+- The Play page renders the shipped session-summary modal with graded review data.
 
-**Stockfish WASM (`lib/stockfish-wasm.ts`):** load `stockfish.wasm` (npm: `stockfish.wasm` or CDN build), set `UCI_LimitStrength` + `UCI_Elo` from session config. Used only for speculative precomputation / animation responsiveness. The server chooses the canonical engine move and creates the canonical trigger (§6.6); browser predictions are never shown as authoritative.
+**Browser Stockfish WASM:** **superseded by the shipped server-side engine design.** The server chooses the canonical engine move and creates the canonical trigger (§6.6).
 
-**Design constraints:** mobile-responsive from day 1 (many testers will be on phones). Dark, calm "study room" aesthetic — no casino colors, no confetti. The product thesis is thinking, the UI should feel like it.
+**Design constraints:** mobile-responsive for learners who use phones. Dark, calm "study room" aesthetic — no casino colors, no confetti. The product thesis is thinking, so the UI should feel like it.
 
 ## 12. Seed data — transfer positions
 
@@ -826,7 +824,7 @@ INSERT INTO transfer_positions (fen, concept, difficulty, tactical_theme, source
  'tactical_awareness', 1, 'none', 'hand_curated', TRUE);
 ```
 
-**Expand to ~60 on day 1** from the Lichess puzzle database (`https://database.lichess.org/#puzzles`, `puzzles.csv.gz`: columns `PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags`). Import script spec (`backend/seed/import_lichess_puzzles.py`):
+**Post-MVP design — not shipped:** expand toward a larger bank from the Lichess puzzle database (`https://database.lichess.org/#puzzles`, `puzzles.csv.gz`: columns `PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags`). Four curated transfer positions are currently seeded; the larger transfer bank and dedicated transfer-training flow remain deferred. A future import script could:
 1. Download + filter: `Rating` 800–1700, `NbPlays` > 50.
 2. Map Lichess themes → our concepts: `mateIn1/mateIn2/backRank` → `opponent_threat_detection`; `hangingPiece` → `tactical_awareness`; `defensiveMove` → `king_safety`; `fork/pin/skewer` → `tactical_awareness`; `quietMove` → `calculation_depth`.
 3. `difficulty` = 1 + int((Rating - 800) / 200), clamped 1–5.
@@ -858,31 +856,27 @@ INSERT INTO transfer_positions (fen, concept, difficulty, tactical_theme, source
 - Weighted initialization: one perfect Think First + one perfect imported outcome initializes to 100%, not 75%.
 - Imported position → hypothesis `supports` must violate the DB CHECK constraint (assert it raises).
 
-**API** (`tests/test_api.py`): full import→session→answer→move→summary loop with a scripted game; assert canonical `sessions.current_fen`/`moves_uci` persist across requests, staged episode statuses transition correctly, summary returns review cards, and Dream Cycle is idempotent (run twice → same beliefs).
+**API:** The planned monolithic `tests/test_api.py` was **replaced in shipped v1** by focused coverage across `test_player.py`, `test_session_loop.py`, `test_episode_lifecycle.py`, `test_brain_endpoint.py`, `test_import.py`, `test_dream_cycle.py`, `test_concurrency.py`, and the related unit suites. Together they cover canonical session persistence, lifecycle transitions, import behavior, summary grading, Dream Cycle idempotency, player scoping, and races.
 
-**E2E golden session:** scripted 12-move game hitting ≥2 triggers; assert the spine works end to end and the Why endpoint returns evidence items.
+**Think First lifecycle test truth:** `test_golden_think_first_e2e_session_loop` verifies prompted/answered/committed/graded behavior and summary grading. If the natural trigger pipeline does not create an episode, the test seeds a prompted episode. It must not be represented as a guaranteed public live-trigger sequence. Natural triggering depends on board conditions, Stockfish output, and unchanged governor rules.
+
+**Future deterministic demo fixture — deferred:** use a clearly labeled development/test-only setup with a known FEN, eligible move count, governor-compatible prior state, and deterministic Stockfish trigger condition. After seeding, use the normal answer, move, finish, summary, Dream Cycle, and Brain APIs. Never write fixture evidence into production learner data.
 
 ## 14. Acceptance criteria (MVP done)
 
-- [ ] Import via Chess.com username AND via PGN upload; pure imported seeds appear only in a clearly labeled **Possible pattern — not yet tested** section.
+- [x] Import via Chess.com username and JSON PGN text; pure imported seeds remain seed-only and cannot confirm a learner hypothesis. Multipart file upload is deferred.
 - [ ] Playable Think First game vs training engine; server persists canonical FEN/move history, exposes honest engine mode below the UCI Elo floor, interruptions fire only after server confirmation; max 5; no eval/hints anywhere mid-game.
 - [ ] Answers stored as episodes; post-game reveal shows thinking-vs-key-idea with Stockfish-checked lines.
-- [ ] Brain dashboard: skills with mastery or "Not enough evidence"; hypotheses as states; Why UI returns evidence from the DB (never LLM-generated).
+- [x] Brain dashboard: skills with mastery or "Not enough evidence," hypotheses as states, aggregate persisted provenance, and belief changes. Dedicated episode-level Why UI is deferred.
 - [ ] Dream cycle runs at session end; `belief_changes` timeline visible; idempotent.
 - [ ] `BUILD_LOG.md` documents the agentic workflow honestly.
-- [ ] Deployed live; README has demo link + 60-second GIF + architecture diagram.
+- [x] Deployed live; README has deployment links and architecture diagrams. A recorded demo artifact remains optional follow-up work.
 
-## 15. Day-by-day execution checklist
+## 15. Original execution plan reconciliation
 
-- **Day 1:** repo scaffold, docker-compose, migration 001 (including canonical session state + `dream_cycle_runs`), seed FENs, Lichess import script → 60 verified positions. Board renders; server-owned move loop works.
-- **Day 2:** Chess.com import + PGN upload; server Stockfish import analysis; seeded hypotheses. Capped engine opponent playable.
-- **Day 3:** trigger detectors + governor + question bank; Socratic modal; answer storage.
-- **Day 4:** grader (deterministic + LLM schema); post-game reveal; session summary endpoint.
-- **Day 5:** belief updater; dream cycle; Brain dashboard.
-- **Day 6:** Why UI; learning path (thin); evidence timeline.
-- **Day 7:** test matrix green; polish; mobile pass.
-- **Day 8:** deploy; README; ARCHITECTURE.md; DECISIONS.md; BUILD_LOG.md complete.
-- **Day 9–10:** 15–20 real users; fix what breaks; collect quotes; 60-second demo recording.
+The shipped prototype includes the repository scaffold, migrations, four transfer seeds, server-owned move loop, Chess.com and JSON PGN import, server Stockfish analysis, trigger detectors, governor, Socratic modal, episode lifecycle, grader, belief updater, Dream Cycle, Brain dashboard, tests, documentation, and deployment.
+
+The original plan's Lichess import script, roughly 60-position bank, multipart upload, dedicated Why UI, dedicated learning-path API, and completed learner study were not shipped. They are deferred rather than implied by this specification.
 
 ---
 
@@ -902,5 +896,5 @@ These are release blockers:
 ## 17. Docs expectations
 
 - `docs/ARCHITECTURE.md` — the 7-step pipeline as built, the Iron Rule as code constraints, data flow diagram.
-- `docs/DECISIONS.md` — every judgment call with date and reason (engine depths, why raw SQL over Alembic, WASM+server split, etc.).
-- `BUILD_LOG.md` — daily entries: what the agent did, what the human changed, what broke. This is the JD's "agentic coding tools as primary environment" proof.
+- `docs/DECISIONS.md` — important judgment calls with date and reason, including the server-authoritative Stockfish design.
+- `BUILD_LOG.md` — daily entries describing what agents did, what the human changed, and what broke; it is the public record of the agentic workflow.
